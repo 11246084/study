@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m ensurepip --upgrade)",
+      "Bash(python -m venv venv)",
+      "Bash(venv/Scripts/python.exe -m pip install --upgrade pip)",
+      "Bash(venv/Scripts/python.exe -m pip install Django==4.2.16 djangorestframework==3.15.2 django-cors-headers==4.4.0 python-decouple==3.8 djangorestframework-simplejwt==5.3.1 Pillow==10.4.0)",
+      "Bash(venv/Scripts/python.exe -m pip install Django==4.2.16 djangorestframework==3.15.2 django-cors-headers==4.4.0 python-decouple==3.8 djangorestframework-simplejwt==5.3.1)",
+      "Bash(venv/Scripts/python.exe -m pip install mysqlclient)",
+      "Bash(venv/Scripts/python.exe -m pip install Pillow)",
+      "Bash(venv/Scripts/python.exe -c \"from django.core.management.utils import get_random_secret_key; print\\(get_random_secret_key\\(\\)\\)\")",
+      "Bash(../venv/Scripts/python.exe manage.py makemigrations)",
+      "Bash(\"/c/Program Files/MySQL/MySQL Server 8.0/bin/mysql\" -u root -pntub42b -e \"CREATE DATABASE IF NOT EXISTS study_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;\")",
+      "Bash(\"C:/Users/940/Documents/GitHub/study/venv/Scripts/python.exe\" manage.py migrate)",
+      "Bash(\"../venv/Scripts/python.exe\" manage.py makemigrations assessments)",
+      "Bash(\"../venv/Scripts/python.exe\" manage.py migrate)",
+      "Bash(python manage.py seed_data)"
+    ]
+  }
+}

@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>課程詳情 — AdaptLearn</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <style>
+    .lesson-list { display: flex; flex-direction: column; gap: 12px; }
+    .lesson-item {
+      display: flex; align-items: center; gap: 16px;
+      background: var(--color-white); border: 1.5px solid var(--color-border);
+      border-radius: var(--radius-md); padding: 16px 20px;
+      transition: border-color 0.2s, box-shadow 0.2s; cursor: pointer;
+    }
+    .lesson-item:hover { border-color: var(--color-black); box-shadow: var(--shadow); }
+    .lesson-item.completed { border-color: var(--color-lime); }
+    .lesson-num {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: var(--color-gray); display: flex; align-items: center;
+      justify-content: center; font-weight: 700; font-size: 0.85rem; flex-shrink: 0;
+    }
+    .lesson-item.completed .lesson-num { background: var(--color-lime); }
+    .lesson-info { flex: 1; }
+    .lesson-title-text { font-weight: 700; font-size: 0.95rem; }
+    .lesson-meta { font-size: 0.8rem; color: var(--color-gray-md); margin-top: 2px; }
+    .lesson-badge {
+      font-size: 0.75rem; padding: 3px 10px; border-radius: 20px;
+      background: var(--color-gray); color: #555; flex-shrink: 0;
+    }
+    .progress-bar-wrap { background: var(--color-border); border-radius: 4px; height: 8px; margin-top: 16px; }
+    .progress-bar-fill { background: var(--color-lime); height: 8px; border-radius: 4px; transition: width 0.5s; }
+    .course-hero {
+      background: var(--color-black); color: var(--color-white);
+      padding: 48px 40px; border-radius: var(--radius-lg); margin-bottom: 40px;
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar">
+    <div class="navbar-logo"><a href="index.html"><span>AL</span> AdaptLearn</a></div>
+    <ul class="navbar-links">
+      <li><a href="index.html">首頁</a></li>
+      <li><a href="courses.html">課程</a></li>
+      <li><a href="/">學習中心</a></li>
+    </ul>
+    <div class="navbar-right" id="nav-right"></div>
+  </nav>
+
+  <div class="section" style="padding-top:40px">
+    <div id="course-hero" class="course-hero">
+      <div class="section-label" style="color:#aaa">載入中...</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 300px;gap:32px;align-items:start">
+      <!-- 單元列表 -->
+      <div>
+        <h2 style="font-size:1.2rem;font-weight:800;margin-bottom:20px">課程單元</h2>
+        <div class="lesson-list" id="lesson-list">
+          <p style="color:#aaa">載入中...</p>
+        </div>
+      </div>
+
+      <!-- 側欄資訊 -->
+      <div>
+        <div class="card">
+          <div class="card-body">
+            <div style="font-size:0.85rem;font-weight:700;margin-bottom:16px;color:#aaa">課程資訊</div>
+            <div id="course-info-side"><p style="color:#aaa;font-size:0.9rem">載入中...</p></div>
+            <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:20px" id="enroll-btn">
+              選課開始學習
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="footer"><p>© 2026 AdaptLearn</p></footer>
+
+  <script src="js/api.js"></script>
+  <script src="js/main.js"></script>
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const courseId = urlParams.get('id');
+    const diffMap = { beginner: '初級', intermediate: '中級', advanced: '進階' };
+    const typeMap = { video: '影片', text: '閱讀', exercise: '練習題' };
+
+    if (!courseId) window.location.href = 'courses.html';
+
+    async function loadCourse() {
+      const course = await CoursesAPI.detail(courseId);
+      if (!course) { showToast('找不到課程', 'error'); return; }
+
+      document.title = `${course.title} — AdaptLearn`;
+
+      // Hero
+      document.getElementById('course-hero').innerHTML = `
+        <span class="card-tag" style="background:var(--color-lime);margin-bottom:16px;display:inline-block">
+          ${diffMap[course.difficulty] || course.difficulty}
+        </span>
+        <h1 style="font-size:clamp(1.5rem,4vw,2.5rem);font-weight:900;margin-bottom:12px">${course.title}</h1>
+        <p style="color:#aaa;max-width:600px">${course.description}</p>
+        <div style="display:flex;gap:24px;margin-top:24px">
+          <div><span style="font-size:1.5rem;font-weight:800">${course.lesson_count}</span><div style="font-size:0.8rem;color:#666">個單元</div></div>
+          <div><span style="font-size:1.5rem;font-weight:800">${course.teacher_name}</span><div style="font-size:0.8rem;color:#666">授課教師</div></div>
+        </div>
+      `;
+
+      // 側欄
+      document.getElementById('course-info-side').innerHTML = `
+        <div style="display:flex;flex-direction:column;gap:10px;font-size:0.9rem">
+          <div style="display:flex;justify-content:space-between"><span style="color:#aaa">難度</span><span style="font-weight:600">${diffMap[course.difficulty]}</span></div>
+          <div style="display:flex;justify-content:space-between"><span style="color:#aaa">單元數</span><span style="font-weight:600">${course.lesson_count} 個</span></div>
+          <div style="display:flex;justify-content:space-between"><span style="color:#aaa">授課教師</span><span style="font-weight:600">${course.teacher_name}</span></div>
+        </div>
+      `;
+
+      // 單元列表
+      const lessons = course.lessons || [];
+      const list = document.getElementById('lesson-list');
+      if (!lessons.length) {
+        list.innerHTML = '<p style="color:#aaa">尚無單元</p>';
+        return;
+      }
+      list.innerHTML = lessons.map(l => `
+        <div class="lesson-item" onclick="goToLesson(${l.id})">
+          <div class="lesson-num">${l.order}</div>
+          <div class="lesson-info">
+            <div class="lesson-title-text">${l.title}</div>
+            <div class="lesson-meta">${typeMap[l.lesson_type] || l.lesson_type} · 約 ${l.duration_minutes} 分鐘</div>
+          </div>
+          <span class="lesson-badge">${typeMap[l.lesson_type] || l.lesson_type}</span>
+        </div>
+      `).join('');
+    }
+
+    function goToLesson(lessonId) {
+      if (!localStorage.getItem('access_token')) {
+        showToast('請先登入再學習', 'error');
+        setTimeout(() => window.location.href = 'login.html', 1200);
+        return;
+      }
+      window.location.href = `lesson.html?lesson_id=${lessonId}`;
+    }
+
+    document.getElementById('enroll-btn')?.addEventListener('click', async () => {
+      if (!localStorage.getItem('access_token')) {
+        showToast('請先登入再選課', 'error');
+        setTimeout(() => window.location.href = 'login.html', 1200);
+        return;
+      }
+      const { ok, data } = await CoursesAPI.enroll(courseId);
+      showToast(ok ? '選課成功！' : (data?.detail || '你可能已選過此課程'), ok ? 'success' : 'error');
+      if (ok) setTimeout(() => window.location.href = '/', 1200);
+    });
+
+    loadCourse();
+  </script>
+</body>
+</html>

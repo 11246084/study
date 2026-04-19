@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>課程列表 — AdaptLearn</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<script>
+  // 未登入直接離開
+  if (!localStorage.getItem('access_token')) {
+    window.location.replace('login.html');
+  }
+  // 取得 role，學生導回學習中心，老師/管理員才能看
+  (async () => {
+    const res = await fetch('/api/auth/profile/', {
+      headers: { 'Authorization': 'Bearer ' + localStorage.getItem('access_token') }
+    });
+    if (res.ok) {
+      const profile = await res.json();
+      if (profile.role === 'student') {
+        window.location.replace('/');
+      }
+    } else {
+      window.location.replace('login.html');
+    }
+  })();
+</script>
+
+  <nav class="navbar">
+    <div class="navbar-logo"><span>AL</span> AdaptLearn</div>
+    <ul class="navbar-links">
+      <li><a href="index.html">首頁</a></li>
+      <li><a href="courses.html">課程</a></li>
+      <li><a href="/">學習中心</a></li>
+    </ul>
+    <div class="navbar-right" id="nav-right"></div>
+  </nav>
+
+  <div class="section" style="padding-top:48px">
+    <div class="section-label">COURSES</div>
+    <h1 class="section-title">所有課程</h1>
+
+    <!-- 篩選 -->
+    <div style="display:flex;gap:12px;margin-bottom:32px;flex-wrap:wrap">
+      <button class="btn btn-primary filter-btn" data-filter="all">全部</button>
+      <button class="btn btn-outline filter-btn" data-filter="beginner">初級</button>
+      <button class="btn btn-outline filter-btn" data-filter="intermediate">中級</button>
+      <button class="btn btn-outline filter-btn" data-filter="advanced">進階</button>
+    </div>
+
+    <div class="card-grid" id="course-list">
+      <p style="color:#aaa">載入中...</p>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <p>© 2026 AdaptLearn</p>
+  </footer>
+
+  <script src="js/api.js"></script>
+  <script src="js/main.js"></script>
+  <script>
+    let allCourses = [];
+    const diffMap = { beginner: '初級', intermediate: '中級', advanced: '進階' };
+
+    function renderCourses(courses) {
+      const grid = document.getElementById('course-list');
+      if (!courses.length) { grid.innerHTML = '<p style="color:#aaa">無符合條件的課程</p>'; return; }
+      grid.innerHTML = courses.map(c => `
+        <div class="card">
+          <div class="card-img" style="background:var(--color-gray);display:flex;align-items:center;justify-content:center;font-size:3rem">📘</div>
+          <div class="card-body">
+            <span class="card-tag">${diffMap[c.difficulty] || c.difficulty}</span>
+            <div class="card-title">${c.title}</div>
+            <div class="card-desc">${c.description?.slice(0,80) || ''}...</div>
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-size:0.8rem;color:#aaa">${c.lesson_count} 個單元</span>
+              <button class="btn btn-primary" style="font-size:0.85rem;padding:8px 18px"
+                onclick="handleEnroll(${c.id})">選課</button>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function handleEnroll(courseId) {
+      if (!localStorage.getItem('access_token')) {
+        showToast('請先登入再選課', 'error');
+        setTimeout(() => window.location.href = 'login.html', 1500);
+        return;
+      }
+      const { ok, data } = await CoursesAPI.enroll(courseId);
+      showToast(ok ? '選課成功！' : (data?.detail || '選課失敗'), ok ? 'success' : 'error');
+    }
+
+    // Filter buttons
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.filter-btn').forEach(b => {
+          b.className = 'btn btn-outline filter-btn';
+        });
+        btn.className = 'btn btn-primary filter-btn';
+        const f = btn.dataset.filter;
+        renderCourses(f === 'all' ? allCourses : allCourses.filter(c => c.difficulty === f));
+      });
+    });
+
+    CoursesAPI.list().then(data => {
+      allCourses = data.results || data;
+      renderCourses(allCourses);
+    });
+  </script>
+</body>
+</html>

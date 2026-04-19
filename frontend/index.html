@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <title>學習中心 — AdaptLearn</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <nav class="navbar">
+    <div class="navbar-logo"><a href="/"><span>AL</span> AdaptLearn</a></div>
+    <ul class="navbar-links"></ul>
+    <div class="navbar-right" id="nav-right"></div>
+  </nav>
+
+  <div class="dashboard-layout">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div style="font-size:1.1rem;font-weight:800;color:var(--color-white)">學習中心</div>
+      <div style="font-size:0.8rem;color:#666;margin-top:4px" id="user-greeting">你好</div>
+      <ul class="sidebar-nav">
+        <li><a href="#overview" class="active">📊 學習總覽</a></li>
+        <li><a href="#recommendations">✨ 適性推薦</a></li>
+        <li><a href="#performance">📈 學習表現</a></li>
+      </ul>
+      <div style="margin-top:auto;padding-top:32px">
+        <button class="btn btn-outline" style="width:100%;color:#fff;border-color:#333"
+          onclick="AuthAPI.logout()">登出</button>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main-content">
+
+      <!-- Overview -->
+      <section id="overview">
+        <div class="page-title">學習總覽</div>
+        <div class="page-subtitle" id="user-name">歡迎回來！</div>
+
+        <div class="stats-row">
+          <div class="stat-card lime">
+            <div class="stat-number" id="stat-enrolled">—</div>
+            <div class="stat-label">完成單元</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number" id="stat-completed">— / 8</div>
+            <div class="stat-label">學習進度</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number" id="stat-score">—</div>
+            <div class="stat-label">平均評量分數</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number" id="stat-recommend">—</div>
+            <div class="stat-label">待查看推薦</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Learning Path -->
+      <section id="my-courses" style="margin-top:40px">
+        <h2 style="font-size:1.3rem;font-weight:800;margin-bottom:16px">學習路徑</h2>
+        <div id="unit-path-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px">
+          <p style="color:#aaa">載入中...</p>
+        </div>
+      </section>
+
+      <!-- Recommendations -->
+      <section id="recommendations" style="margin-top:40px">
+        <h2 style="font-size:1.3rem;font-weight:800;margin-bottom:16px">✨ 適性推薦</h2>
+        <div id="recommendations-list">
+          <p style="color:#aaa">載入中...</p>
+        </div>
+      </section>
+
+      <!-- Performance -->
+      <section id="performance" style="margin-top:40px">
+        <h2 style="font-size:1.3rem;font-weight:800;margin-bottom:16px">📈 學習表現</h2>
+        <div id="performance-list">
+          <p style="color:#aaa">載入中...</p>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/main.js"></script>
+  <script>
+    if (!localStorage.getItem('access_token')) {
+      window.location.replace('/register.html');
+    }
+
+    const profMap = { low: '待加強', medium: '普通', high: '精熟' };
+
+    async function loadDashboard() {
+      const profile = await AuthAPI.getProfile();
+      if (profile) {
+        document.getElementById('user-greeting').textContent = `你好，${profile.username}`;
+        document.getElementById('user-name').textContent = `歡迎回來，${profile.username}！今天也繼續學習吧。`;
+      }
+
+      // 學習路徑（8 個單元）
+      const pathRes = await apiFetch('/learning/adaptive-path/');
+      const units = pathRes && pathRes.ok ? await pathRes.json() : [];
+      const completedCount = units.filter(u => u.status === 'completed').length;
+      document.getElementById('stat-enrolled').textContent = completedCount;
+      document.getElementById('stat-completed').textContent = `${completedCount} / 8`;
+
+      const levelColors = { 1: '#ffcccc', 2: 'var(--color-lime)', 3: '#b3d9ff' };
+      const statusLabel = { completed: '已完成', available: '進行中', locked: '尚未解鎖' };
+      const statusColor = { completed: '#38a169', available: 'var(--color-black)', locked: '#aaa' };
+
+      const levelShortName = {1:'L1 補救', 2:'L2 標準', 3:'L3 進階'};
+      const unitList = document.getElementById('unit-path-list');
+      unitList.innerHTML = units.map(u => {
+        const isLocked = u.status === 'locked';
+
+        // 等級切換列（僅解鎖單元顯示）
+        const levelSwitcher = (!isLocked && u.all_levels) ? `
+          <div style="display:flex;gap:4px;margin-top:10px">
+            ${[1,2,3].map(lvl => {
+              const lid = u.all_levels[lvl];
+              if (!lid) return '';
+              const isActive = lvl === u.current_level;
+              const bg = isActive ? levelColors[lvl] : '#eee';
+              const border = isActive ? '2px solid var(--color-black)' : '2px solid transparent';
+              return `<a href="lesson.html?lesson_id=${lid}"
+                style="flex:1;text-align:center;padding:5px 2px;font-size:0.68rem;font-weight:700;
+                       border-radius:4px;border:${border};background:${bg};
+                       color:var(--color-black);text-decoration:none;line-height:1.3">
+                ${levelShortName[lvl]}
+              </a>`;
+            }).join('')}
+          </div>` : '';
+
+        return `
+          <div class="card" style="opacity:${isLocked ? '0.5' : '1'}">
+            <div style="background:${levelColors[u.current_level]};padding:10px 16px;border-radius:var(--radius-md) var(--radius-md) 0 0;font-size:0.72rem;font-weight:800">
+              ${u.level_name}
+            </div>
+            <div class="card-body">
+              <div style="font-size:0.75rem;color:#aaa;font-weight:700">Unit ${u.unit_number}</div>
+              <div class="card-title" style="margin:4px 0 8px">${u.unit_title}</div>
+              <div style="font-size:0.8rem;font-weight:700;color:${statusColor[u.status]};margin-bottom:12px">
+                ${statusLabel[u.status]}
+                ${u.last_score ? `· ${Math.round(u.last_score)} 分` : ''}
+              </div>
+              ${!isLocked && u.lesson_id
+                ? `<a href="lesson.html?lesson_id=${u.lesson_id}" class="btn btn-primary" style="width:100%;justify-content:center;font-size:0.85rem">
+                    ${u.status === 'completed' ? '複習單元' : '開始學習 →'}
+                  </a>
+                  ${levelSwitcher}`
+                : `<div class="btn btn-outline" style="width:100%;justify-content:center;font-size:0.85rem;opacity:0.4;cursor:not-allowed">🔒 尚未解鎖</div>`
+              }
+            </div>
+          </div>`;
+      }).join('');
+
+      // 推薦
+      const recData = await LearningAPI.getRecommendations();
+      const recs = recData.results || recData;
+      document.getElementById('stat-recommend').textContent = recs.length;
+      const recList = document.getElementById('recommendations-list');
+      if (!recs.length) {
+        recList.innerHTML = '<p style="color:#aaa">目前無推薦，完成單元評量後系統將為你推薦</p>';
+      } else {
+        recList.innerHTML = recs.map(r => `
+          <div class="card" style="margin-bottom:12px">
+            <div class="card-body" style="display:flex;justify-content:space-between;align-items:center">
+              <div>
+                <div class="card-title" style="margin-bottom:4px">${r.lesson_title}</div>
+                <div class="card-desc">${r.reason}</div>
+              </div>
+              <a href="lesson.html?lesson_id=${r.lesson_id}" class="btn btn-lime" style="flex-shrink:0">前往學習 →</a>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      // 表現
+      const perfData = await LearningAPI.getPerformance();
+      const perfs = perfData.results || perfData;
+      const perfList = document.getElementById('performance-list');
+      if (!perfs.length) {
+        perfList.innerHTML = '<p style="color:#aaa">完成評量後將顯示學習表現紀錄</p>';
+        document.getElementById('stat-score').textContent = '—';
+      } else {
+        const avg = (perfs.reduce((s, p) => s + p.quiz_score_avg, 0) / perfs.length).toFixed(1);
+        document.getElementById('stat-score').textContent = avg;
+        perfList.innerHTML = `
+          <div class="card">
+            <div class="card-body">
+              <table style="width:100%;border-collapse:collapse;font-size:0.9rem">
+                <thead>
+                  <tr style="border-bottom:2px solid var(--color-border)">
+                    <th style="text-align:left;padding:8px 0">單元</th>
+                    <th style="text-align:center;padding:8px">平均分數</th>
+                    <th style="text-align:center;padding:8px">精熟度</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${perfs.map(p => `
+                    <tr style="border-bottom:1px solid var(--color-border)">
+                      <td style="padding:10px 0">${p.course_title}</td>
+                      <td style="text-align:center;font-weight:700">${p.quiz_score_avg.toFixed(1)}</td>
+                      <td style="text-align:center">
+                        <span class="card-tag" style="background:${p.proficiency === 'high' ? 'var(--color-lime)' : p.proficiency === 'medium' ? '#ddd' : '#ffcccc'}">
+                          ${profMap[p.proficiency]}
+                        </span>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    loadDashboard();
+  </script>
+</body>
+</html>

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>登入 — AdaptLearn</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body style="background:var(--color-gray);min-height:100vh">
+
+  <nav class="navbar" style="background:var(--color-white)">
+    <div class="navbar-logo"><a href="index.html"><span>AL</span> AdaptLearn</a></div>
+    <ul class="navbar-links">
+      <li><a href="index.html">首頁</a></li>
+      <li><a href="courses.html">課程</a></li>
+    </ul>
+    <div class="navbar-right"></div>
+  </nav>
+
+  <div class="form-card">
+    <div class="form-title">歡迎回來</div>
+    <div class="form-subtitle">登入你的帳號繼續學習</div>
+
+    <form id="login-form">
+      <div class="form-group">
+        <label class="form-label" for="username">帳號</label>
+        <input class="form-input" type="text" id="username" placeholder="請輸入帳號" required />
+        <div class="form-error" id="err-username"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="password">密碼</label>
+        <input class="form-input" type="password" id="password" placeholder="請輸入密碼" required />
+        <div class="form-error" id="err-password"></div>
+      </div>
+      <div class="form-error" id="err-general" style="margin-bottom:12px"></div>
+      <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center" id="submit-btn">
+        登入
+      </button>
+    </form>
+
+    <div class="form-footer">
+      還沒有帳號？<a href="register.html">立即註冊</a>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/main.js"></script>
+  <script>
+    if (localStorage.getItem('access_token')) {
+      window.location.href = '/';
+    }
+
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('submit-btn');
+      btn.textContent = '登入中...';
+      btn.disabled = true;
+
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+
+      try {
+        const { ok, data } = await AuthAPI.login(username, password);
+
+        if (ok) {
+          showToast('登入成功！');
+          setTimeout(() => window.location.href = '/', 800);
+        } else {
+          const errEl = document.getElementById('err-general');
+          errEl.textContent = data?.detail || '帳號或密碼錯誤';
+          errEl.style.display = 'block';
+          btn.textContent = '登入';
+          btn.disabled = false;
+        }
+      } catch (err) {
+        const errEl = document.getElementById('err-general');
+        errEl.textContent = '無法連線到伺服器，請確認後端是否啟動';
+        errEl.style.display = 'block';
+        btn.textContent = '登入';
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

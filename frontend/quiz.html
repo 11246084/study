@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>單元評量 — AdaptLearn</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <style>
+    .quiz-wrap { max-width: 720px; margin: 0 auto; padding: 40px 20px; }
+    .quiz-header { margin-bottom: 40px; }
+    .progress-steps {
+      display: flex; gap: 8px; margin-bottom: 32px;
+    }
+    .step-dot {
+      flex: 1; height: 6px; border-radius: 3px; background: var(--color-border);
+      transition: background 0.3s;
+    }
+    .step-dot.active { background: var(--color-black); }
+    .step-dot.done   { background: var(--color-lime); }
+
+    .question-card {
+      background: var(--color-white); border: 1.5px solid var(--color-border);
+      border-radius: var(--radius-lg); padding: 32px; margin-bottom: 24px;
+    }
+    .question-num {
+      font-size: 0.8rem; font-weight: 700; color: var(--color-gray-md);
+      letter-spacing: 1px; margin-bottom: 12px;
+    }
+    .question-text { font-size: 1.05rem; font-weight: 600; line-height: 1.6; margin-bottom: 24px; white-space: pre-wrap; }
+    .question-code {
+      background: #1e1e1e; color: #d4d4d4; border-radius: var(--radius-sm);
+      padding: 16px; font-family: 'Fira Code', monospace; font-size: 0.85rem;
+      line-height: 1.6; margin: 12px 0 20px; overflow-x: auto;
+    }
+    .choices { display: flex; flex-direction: column; gap: 12px; }
+    .choice-label {
+      display: flex; align-items: center; gap: 14px;
+      border: 2px solid var(--color-border); border-radius: var(--radius-sm);
+      padding: 14px 18px; cursor: pointer; transition: all 0.15s;
+    }
+    .choice-label:hover { border-color: var(--color-black); background: var(--color-gray); }
+    .choice-label input[type="radio"] { display: none; }
+    .choice-label.selected { border-color: var(--color-black); background: var(--color-black); color: var(--color-white); }
+    .choice-marker {
+      width: 28px; height: 28px; border-radius: 50%; border: 2px solid currentColor;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.75rem; font-weight: 700; flex-shrink: 0;
+    }
+    .choice-label.selected .choice-marker { background: var(--color-lime); border-color: var(--color-lime); color: var(--color-black); }
+
+    .quiz-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 32px; }
+    .timer { font-size: 0.9rem; color: var(--color-gray-md); }
+    .timer span { font-weight: 700; color: var(--color-black); }
+  </style>
+</head>
+<body style="background:var(--color-gray)">
+
+  <nav class="navbar" style="background:var(--color-white)">
+    <div class="navbar-logo"><a href="index.html"><span>AL</span> AdaptLearn</a></div>
+    <div style="font-size:0.9rem;color:#aaa" id="quiz-title-nav">評量進行中</div>
+    <div class="navbar-right" id="nav-right"></div>
+  </nav>
+
+  <div class="quiz-wrap">
+    <div class="quiz-header">
+      <div class="section-label" id="quiz-meta">載入中...</div>
+      <h1 style="font-size:1.6rem;font-weight:900;margin:8px 0 4px" id="quiz-title">—</h1>
+      <div id="progress-steps" class="progress-steps"></div>
+    </div>
+
+    <form id="quiz-form">
+      <div id="questions-container"></div>
+      <div class="quiz-actions">
+        <div class="timer">作答時間：<span id="timer">00:00</span></div>
+        <button type="submit" class="btn btn-primary" id="submit-btn" disabled>
+          提交評量 →
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/main.js"></script>
+  <script>
+    if (!localStorage.getItem('access_token')) window.location.href = 'login.html';
+
+    const params = new URLSearchParams(window.location.search);
+    const quizId = params.get('quiz_id');
+    const lessonId = params.get('lesson_id');
+    if (!quizId) window.location.href = 'courses.html';
+
+    let quiz = null;
+    let selectedAnswers = {};
+    let startTime = Date.now();
+
+    // 計時器
+    setInterval(() => {
+      const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      const m = String(Math.floor(elapsed / 60)).padStart(2, '0');
+      const s = String(elapsed % 60).padStart(2, '0');
+      document.getElementById('timer').textContent = `${m}:${s}`;
+    }, 1000);
+
+    const LABELS = ['A', 'B', 'C', 'D', 'E'];
+
+    function renderQuestion(q, idx) {
+      const codeMatch = q.content.match(/```(?:python)?\n([\s\S]*?)```/);
+      const textPart = q.content.replace(/```(?:python)?\n[\s\S]*?```/g, '').trim();
+      const codeBlock = codeMatch ? `<pre class="question-code">${codeMatch[1].replace(/</g,'&lt;')}</pre>` : '';
+
+      let answerUI = '';
+      if (q.question_type === 'multiple_choice') {
+        answerUI = `<div class="choices">
+          ${q.choices.map((c, ci) => `
+            <label class="choice-label" id="choice-label-${q.id}-${c.id}" onclick="selectChoice(${q.id}, ${c.id}, this)">
+              <input type="radio" name="q${q.id}" value="${c.id}" />
+              <div class="choice-marker">${LABELS[ci]}</div>
+              <span>${c.content}</span>
+            </label>
+          `).join('')}
+        </div>`;
+      } else if (q.question_type === 'short_answer') {
+        answerUI = `
+          <div style="font-size:0.85rem;color:#666;margin-bottom:8px">請填入答案（程式碼片段）：</div>
+          <input type="text" id="input-${q.id}"
+            style="width:100%;padding:12px 16px;font-family:monospace;font-size:0.95rem;
+                   border:2px solid var(--color-border);border-radius:var(--radius-sm);outline:none"
+            placeholder="請輸入答案..."
+            oninput="selectText(${q.id}, this.value)" />`;
+      } else if (q.question_type === 'coding') {
+        answerUI = `
+          <div style="font-size:0.85rem;color:#666;margin-bottom:8px">請在下方撰寫完整程式：</div>
+          <textarea id="input-${q.id}" rows="10"
+            style="width:100%;padding:12px 16px;font-family:monospace;font-size:0.9rem;
+                   border:2px solid var(--color-border);border-radius:var(--radius-sm);
+                   outline:none;resize:vertical;background:#1e1e1e;color:#d4d4d4"
+            placeholder="# 在此撰寫你的程式碼..."
+            oninput="selectText(${q.id}, this.value)"></textarea>
+          <div style="font-size:0.78rem;color:#aaa;margin-top:6px">提示：有作答即算完成，教師將批改程式碼正確性</div>`;
+      }
+
+      return `
+        <div class="question-card" id="q-card-${q.id}">
+          <div class="question-num">題目 ${idx + 1} / ${quiz.questions.length}
+            <span style="margin-left:8px;padding:2px 8px;border-radius:4px;font-size:0.72rem;
+              background:${q.question_type==='coding'?'#b3d9ff':q.question_type==='short_answer'?'var(--color-lime)':'#eee'}">
+              ${q.question_type==='coding'?'程式設計題':q.question_type==='short_answer'?'填空題':'選擇題'}
+            </span>
+          </div>
+          <div class="question-text">${textPart}</div>
+          ${codeBlock}
+          ${answerUI}
+        </div>
+      `;
+    }
+
+    function selectChoice(questionId, choiceId, labelEl) {
+      quiz.questions.find(q => q.id === questionId).choices.forEach(c => {
+        document.getElementById(`choice-label-${questionId}-${c.id}`)?.classList.remove('selected');
+      });
+      labelEl.classList.add('selected');
+      selectedAnswers[questionId] = String(choiceId);
+      checkAllAnswered();
+      updateProgress();
+    }
+
+    function selectText(questionId, value) {
+      selectedAnswers[questionId] = value;
+      checkAllAnswered();
+      updateProgress();
+    }
+
+    function checkAllAnswered() {
+      const allAnswered = quiz.questions.every(q => {
+        const ans = selectedAnswers[q.id];
+        return ans !== undefined && ans !== '';
+      });
+      document.getElementById('submit-btn').disabled = !allAnswered;
+    }
+
+    function updateProgress() {
+      document.querySelectorAll('.step-dot').forEach((dot, i) => {
+        const q = quiz.questions[i];
+        const ans = selectedAnswers[q.id];
+        if (ans !== undefined && ans !== '') dot.classList.add('done');
+        else dot.classList.remove('done');
+      });
+    }
+
+    async function loadQuiz() {
+      const res = await apiFetch(`/assessments/${quizId}/`);
+      if (!res || !res.ok) { showToast('無法載入評量', 'error'); return; }
+      quiz = await res.json();
+
+      document.title = `${quiz.title} — AdaptLearn`;
+      document.getElementById('quiz-title-nav').textContent = quiz.title;
+      document.getElementById('quiz-meta').textContent = `形成性評量 · ${quiz.question_count} 題 · 及格分數 ${quiz.pass_score} 分`;
+      document.getElementById('quiz-title').textContent = quiz.title;
+
+      // 進度步驟
+      document.getElementById('progress-steps').innerHTML =
+        quiz.questions.map(() => '<div class="step-dot"></div>').join('');
+
+      // 渲染題目
+      document.getElementById('questions-container').innerHTML =
+        quiz.questions.map((q, i) => renderQuestion(q, i)).join('');
+    }
+
+    document.getElementById('quiz-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('submit-btn');
+      btn.textContent = '提交中...';
+      btn.disabled = true;
+
+      const payload = {
+        quiz_id: parseInt(quizId),
+        answers: Object.entries(selectedAnswers).map(([qId, ans]) => ({
+          question_id: parseInt(qId),
+          student_answer: ans,
+        })),
+      };
+
+      const res = await apiFetch('/assessments/submit/', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+
+      if (res && res.ok) {
+        const attempt = await res.json();
+        window.location.href = `quiz-result.html?attempt_id=${attempt.id}&lesson_id=${lessonId || ''}`;
+      } else {
+        showToast('提交失敗，請重試', 'error');
+        btn.textContent = '提交評量 →';
+        btn.disabled = false;
+      }
+    });
+
+    loadQuiz();
+  </script>
+</body>
+</html>

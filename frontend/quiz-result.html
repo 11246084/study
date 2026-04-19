@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <title>評量結果 — AdaptLearn</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <style>
+    .result-wrap { max-width: 720px; margin: 0 auto; padding: 40px 20px; }
+    .score-card {
+      background: var(--color-black); color: var(--color-white);
+      border-radius: var(--radius-lg); padding: 40px; text-align: center; margin-bottom: 32px;
+    }
+    .score-big { font-size: 5rem; font-weight: 900; line-height: 1; }
+    .score-big span { color: var(--color-lime); }
+    .score-label { font-size: 1rem; color: #aaa; margin-top: 8px; }
+    .pass-badge {
+      display: inline-block; padding: 6px 20px; border-radius: 50px;
+      font-weight: 700; font-size: 0.95rem; margin-top: 16px;
+    }
+    .pass-badge.pass { background: var(--color-lime); color: var(--color-black); }
+    .pass-badge.fail { background: #e53e3e; color: white; }
+
+    .answer-item {
+      border: 1.5px solid var(--color-border); border-radius: var(--radius-md);
+      padding: 20px; margin-bottom: 16px;
+    }
+    .answer-item.correct { border-color: #38a169; background: #f0fff4; }
+    .answer-item.wrong   { border-color: #e53e3e; background: #fff5f5; }
+    .answer-status { font-size: 0.8rem; font-weight: 700; margin-bottom: 8px; }
+    .answer-status.correct { color: #38a169; }
+    .answer-status.wrong   { color: #e53e3e; }
+    .answer-q { font-weight: 600; margin-bottom: 12px; white-space: pre-wrap; }
+    .answer-code {
+      background: #1e1e1e; color: #d4d4d4; border-radius: var(--radius-sm);
+      padding: 12px; font-family: monospace; font-size: 0.82rem; margin: 8px 0;
+    }
+    .answer-detail { font-size: 0.88rem; color: #555; }
+    .answer-detail .label { font-weight: 600; margin-top: 8px; }
+    .explanation-box {
+      background: var(--color-gray); border-radius: var(--radius-sm);
+      padding: 12px 16px; margin-top: 12px; font-size: 0.88rem; color: #444;
+    }
+    .result-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 32px; }
+  </style>
+</head>
+<body style="background:var(--color-gray)">
+
+  <nav class="navbar" style="background:var(--color-white)">
+    <div class="navbar-logo"><a href="index.html"><span>AL</span> AdaptLearn</a></div>
+    <div class="navbar-right" id="nav-right"></div>
+  </nav>
+
+  <div class="result-wrap">
+
+    <!-- 分數卡片 -->
+    <div class="score-card" id="score-card">
+      <div style="color:#aaa;font-size:0.85rem;margin-bottom:12px">載入中...</div>
+    </div>
+
+    <!-- 適性推薦下一單元 -->
+    <div id="next-lesson-banner" style="display:none;border-radius:var(--radius-md);padding:24px 28px;
+         align-items:center;justify-content:space-between;gap:20px;margin-bottom:32px;flex-wrap:wrap">
+      <div>
+        <span id="next-level-badge" style="font-size:0.75rem;font-weight:800;
+              background:rgba(0,0,0,0.12);padding:3px 10px;border-radius:20px;display:inline-block;margin-bottom:8px"></span>
+        <div id="next-unit-title" style="font-size:1.1rem;font-weight:800"></div>
+        <div id="next-reason" style="font-size:0.85rem;margin-top:4px;opacity:0.7"></div>
+      </div>
+      <a id="next-lesson-btn" href="#" class="btn btn-primary" style="flex-shrink:0">
+        前往下一單元 →
+      </a>
+    </div>
+
+    <!-- 題目解析 -->
+    <h2 style="font-size:1.1rem;font-weight:800;margin-bottom:16px">詳細解析</h2>
+    <div id="answers-list"></div>
+
+    <div class="result-actions" id="result-actions"></div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/main.js"></script>
+  <script>
+    if (!localStorage.getItem('access_token')) window.location.href = 'login.html';
+
+    const params = new URLSearchParams(window.location.search);
+    const attemptId = params.get('attempt_id');
+    const lessonId  = params.get('lesson_id');
+    if (!attemptId) window.location.href = '/';
+
+    async function loadResult() {
+      const res = await apiFetch(`/assessments/attempts/${attemptId}/`);
+      if (!res || !res.ok) { showToast('無法載入結果', 'error'); return; }
+      const data = await res.json();
+
+      document.title = `評量結果 — AdaptLearn`;
+
+      // 分數卡片
+      document.getElementById('score-card').innerHTML = `
+        <div style="font-size:0.85rem;color:#aaa;margin-bottom:12px">${data.quiz_title}</div>
+        <div class="score-big"><span>${Math.round(data.score)}</span> 分</div>
+        <div class="score-label">滿分 100 分</div>
+        <div class="pass-badge ${data.is_passed ? 'pass' : 'fail'}">
+          ${data.is_passed ? '✅ 通過' : '❌ 未通過'}
+        </div>
+        ${data.is_passed
+          ? '<div style="color:#aaa;font-size:0.85rem;margin-top:12px">恭喜你通過本單元評量！</div>'
+          : '<div style="color:#aaa;font-size:0.85rem;margin-top:12px">建議重新複習後再次作答</div>'}
+      `;
+
+      // 題目解析
+      const answers = data.answers || [];
+      const list = document.getElementById('answers-list');
+      if (!answers.length) {
+        list.innerHTML = '<p style="color:#aaa">無答案記錄</p>';
+      } else {
+        list.innerHTML = answers.map((a, i) => {
+          const codeMatch = a.question_content.match(/```(?:python)?\n([\s\S]*?)```/);
+          const textPart = a.question_content.replace(/```(?:python)?\n[\s\S]*?```/g, '').trim();
+          const codeBlock = codeMatch ? `<div class="answer-code">${codeMatch[1].replace(/</g,'&lt;')}</div>` : '';
+
+          return `
+            <div class="answer-item ${a.is_correct ? 'correct' : 'wrong'}">
+              <div class="answer-status ${a.is_correct ? 'correct' : 'wrong'}">
+                ${a.is_correct ? '✓ 答對' : '✗ 答錯'} · ${a.points_earned} 分
+              </div>
+              <div class="answer-q">${i + 1}. ${textPart}</div>
+              ${codeBlock}
+              <div class="answer-detail">
+                <div class="label">你的作答：</div>
+                <div>${a.student_answer || '未作答'}</div>
+                ${!a.is_correct && a.correct_choice ? `
+                  <div class="label" style="color:#38a169">正確答案：</div>
+                  <div style="color:#38a169">${a.correct_choice}</div>
+                ` : ''}
+              </div>
+              ${a.explanation ? `
+                <div class="explanation-box">
+                  💡 <strong>解析：</strong>${a.explanation}
+                </div>
+              ` : ''}
+            </div>
+          `;
+        }).join('');
+      }
+
+      // ── 適性推薦 ─────────────────────────────────────────────────
+      const nextLesson = data.next_lesson;
+      const nextBanner = document.getElementById('next-lesson-banner');
+      if (nextLesson) {
+        const levelColors = { 1: '#ffcccc', 2: 'var(--color-lime)', 3: '#b3d9ff' };
+        const isSameUnit = nextLesson.is_same_unit;
+        let badge = '';
+        if (isSameUnit) {
+          badge = nextLesson.level > (nextLesson.level - 1) ? `⬆ 挑戰進階 — ${nextLesson.level_name}` : `⬇ 補救複習 — ${nextLesson.level_name}`;
+          // re-derive direction from reason text
+          badge = nextLesson.reason.includes('推薦挑戰') ? `⬆ 挑戰進階 — ${nextLesson.level_name}` : `⬇ 補救複習 — ${nextLesson.level_name}`;
+        } else {
+          const dirMap = { 1: '⬇ 降階', 2: '➡ 維持', 3: '⬆ 升階' };
+          badge = `${dirMap[nextLesson.level] || '➡'} — ${nextLesson.level_name}`;
+        }
+        nextBanner.style.display = 'flex';
+        nextBanner.style.background = levelColors[nextLesson.level] || 'var(--color-lime)';
+        document.getElementById('next-reason').textContent = nextLesson.reason;
+        document.getElementById('next-level-badge').textContent = badge;
+        document.getElementById('next-unit-title').textContent = isSameUnit
+          ? `同單元複習：Unit ${nextLesson.unit_number}：${nextLesson.lesson_title}`
+          : `Unit ${nextLesson.unit_number}：${nextLesson.lesson_title}`;
+        document.getElementById('next-lesson-btn').textContent = isSameUnit ? '前往複習 →' : '前往下一單元 →';
+        document.getElementById('next-lesson-btn').href = `lesson.html?lesson_id=${nextLesson.lesson_id}`;
+      } else {
+        nextBanner.innerHTML = `
+          <div>
+            <div style="font-size:1.3rem;font-weight:900">🎉 全部單元完成！</div>
+            <div style="margin-top:4px;font-size:0.9rem">恭喜你完成所有 8 個單元的學習！</div>
+          </div>
+          <a href="/" class="btn btn-primary" style="flex-shrink:0">查看學習成果</a>
+        `;
+        nextBanner.style.display = 'flex';
+        nextBanner.style.background = 'var(--color-lime)';
+      }
+
+      // 操作按鈕
+      const actions = document.getElementById('result-actions');
+      actions.innerHTML = `
+        ${lessonId ? `<a href="lesson.html?lesson_id=${lessonId}" class="btn btn-outline">← 返回單元</a>` : ''}
+        ${!data.is_passed && lessonId
+          ? `<a href="quiz.html?quiz_id=${data.quiz}&lesson_id=${lessonId}" class="btn btn-primary">重新作答</a>`
+          : ''}
+        <a href="/" class="btn btn-lime">回學習中心</a>
+      `;
+    }
+
+    loadResult();
+  </script>
+</body>
+</html>
