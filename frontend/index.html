@@ -7,6 +7,7 @@
   <title>學習中心 — AdaptLearn</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
@@ -80,9 +81,7 @@
       <!-- Performance -->
       <section id="performance" style="margin-top:40px">
         <h2 style="font-size:1.3rem;font-weight:800;margin-bottom:16px">📈 學習表現</h2>
-        <div id="performance-list">
-          <p style="color:#aaa">載入中...</p>
-        </div>
+        <div id="performance-list"><p style="color:#aaa">載入中...</p></div>
       </section>
 
     </main>
@@ -92,10 +91,163 @@
   <script src="js/main.js"></script>
   <script>
     if (!localStorage.getItem('access_token')) {
-      window.location.replace('/register.html');
+      window.location.replace('/login.html');
     }
 
-    const profMap = { low: '待加強', medium: '普通', high: '精熟' };
+    function renderPerformance(units) {
+      const performanceUnits = units.map(u => ({
+        ...u,
+        performance_score: u.best_score ?? u.last_score,
+      }));
+      const attempted = performanceUnits.filter(u => u.performance_score != null);
+      const perfList = document.getElementById('performance-list');
+
+      if (!attempted.length) {
+        perfList.innerHTML = '<p style="color:#aaa">完成評量後將顯示學習表現</p>';
+        document.getElementById('stat-score').textContent = '—';
+        return;
+      }
+
+      const avg = (attempted.reduce((s, u) => s + u.performance_score, 0) / attempted.length).toFixed(1);
+      document.getElementById('stat-score').textContent = avg;
+
+      const best  = attempted.reduce((a, b) => a.performance_score >= b.performance_score ? a : b);
+      const worst = attempted.reduce((a, b) => a.performance_score <= b.performance_score ? a : b);
+
+      const lvlStroke = { 1: '#ff6b6b', 2: '#a8d800', 3: '#4a90d9' };
+      const lvlBg     = { 1: '#ffcccc', 2: 'var(--color-lime)', 3: '#b3d9ff' };
+
+      const barRows = performanceUnits.map(u => {
+        const s = u.performance_score;
+        const pct = s != null ? Math.round(s) : 0;
+        const textColor = s != null ? 'var(--color-black)' : '#666';
+        const badge = s != null
+          ? `<span style="font-size:0.62rem;font-weight:700;padding:1px 6px;border-radius:10px;background:${lvlBg[u.current_level]};margin-left:4px">L${u.current_level}</span>`
+          : '';
+        return `
+          <div style="margin-bottom:11px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+              <div style="font-size:0.78rem;font-weight:700;color:${textColor}">
+                Unit ${u.unit_number} ${u.unit_title}${badge}
+              </div>
+              <span style="font-size:0.78rem;font-weight:700;color:${textColor};flex-shrink:0;margin-left:8px">
+                ${s != null ? Math.round(s) + ' 分' : '未測驗'}
+              </span>
+            </div>
+            <div style="background:#2a2a2a;border-radius:6px;height:8px;overflow:hidden">
+              <div style="width:${pct}%;height:100%;background:${s != null ? lvlStroke[u.current_level] : 'transparent'};border-radius:6px;transition:width 0.6s ease"></div>
+            </div>
+          </div>`;
+      }).join('');
+
+      const bestDiffBadge = best !== worst
+        ? `<div class="card" style="flex:1;border-left:4px solid #ffcccc">
+            <div class="card-body" style="padding:12px 16px">
+              <div style="font-size:0.7rem;color:#aaa;font-weight:700;margin-bottom:4px">建議複習</div>
+              <div style="font-weight:800;font-size:0.9rem">Unit ${worst.unit_number} ${worst.unit_title}</div>
+              <div style="font-size:0.82rem;color:#aaa">${Math.round(worst.performance_score)} 分</div>
+            </div>
+          </div>` : '';
+
+      const lineChartHtml = attempted.length > 1
+        ? `<div class="card" style="margin-top:16px">
+            <div class="card-body">
+              <div style="font-size:0.85rem;font-weight:800;margin-bottom:10px">學習趨勢</div>
+              <canvas id="perf-line" style="max-height:180px"></canvas>
+            </div>
+          </div>` : '';
+
+      perfList.innerHTML = `
+        <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+          <div class="card" style="flex:1;min-width:140px;border-left:4px solid var(--color-lime)">
+            <div class="card-body" style="padding:12px 16px">
+              <div style="font-size:0.7rem;color:#aaa;font-weight:700;margin-bottom:4px">最佳單元</div>
+              <div style="font-weight:800;font-size:0.9rem">Unit ${best.unit_number} ${best.unit_title}</div>
+              <div style="font-size:0.82rem;color:#aaa">${Math.round(best.performance_score)} 分</div>
+            </div>
+          </div>
+          ${bestDiffBadge}
+          <div class="card" style="flex:1;min-width:100px">
+            <div class="card-body" style="padding:12px 16px">
+              <div style="font-size:0.7rem;color:#aaa;font-weight:700;margin-bottom:4px">平均分數</div>
+              <div style="font-weight:800;font-size:1.4rem">${avg}</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div class="card">
+            <div class="card-body">
+              <div style="font-size:0.85rem;font-weight:800;margin-bottom:14px">各單元分數</div>
+              ${barRows}
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-body" style="display:flex;flex-direction:column;align-items:center">
+              <div style="font-size:0.85rem;font-weight:800;margin-bottom:8px;align-self:flex-start">能力雷達圖</div>
+              <canvas id="perf-radar" style="max-width:260px;max-height:260px"></canvas>
+            </div>
+          </div>
+        </div>
+
+        ${lineChartHtml}
+      `;
+
+      // Radar chart
+      new Chart(document.getElementById('perf-radar'), {
+        type: 'radar',
+        data: {
+          labels: performanceUnits.map(u => `U${u.unit_number}`),
+          datasets: [{
+            data: performanceUnits.map(u => u.performance_score != null ? Math.round(u.performance_score) : 0),
+            backgroundColor: 'rgba(168,216,0,0.18)',
+            borderColor: '#a8d800',
+            borderWidth: 2,
+            pointBackgroundColor: '#a8d800',
+            pointRadius: 3,
+          }]
+        },
+        options: {
+          scales: {
+            r: {
+              min: 0, max: 100,
+              ticks: { stepSize: 25, color: '#666', font: { size: 10 }, backdropColor: 'transparent' },
+              grid: { color: '#333' },
+              pointLabels: { color: '#ccc', font: { size: 11 } },
+              angleLines: { color: '#333' },
+            }
+          },
+          plugins: { legend: { display: false } },
+        }
+      });
+
+      // Line chart
+      if (attempted.length > 1) {
+        new Chart(document.getElementById('perf-line'), {
+          type: 'line',
+          data: {
+            labels: attempted.map(u => `Unit ${u.unit_number}`),
+            datasets: [{
+              data: attempted.map(u => Math.round(u.performance_score)),
+              backgroundColor: 'rgba(168,216,0,0.12)',
+              borderColor: '#a8d800',
+              borderWidth: 2,
+              pointBackgroundColor: '#a8d800',
+              pointRadius: 4,
+              fill: true,
+              tension: 0.35,
+            }]
+          },
+          options: {
+            scales: {
+              y: { min: 0, max: 100, ticks: { color: '#888', font: { size: 11 } }, grid: { color: '#2a2a2a' } },
+              x: { ticks: { color: '#888', font: { size: 11 } }, grid: { color: '#2a2a2a' } },
+            },
+            plugins: { legend: { display: false } },
+          }
+        });
+      }
+    }
 
     async function loadDashboard() {
       const profile = await AuthAPI.getProfile();
@@ -120,8 +272,8 @@
       unitList.innerHTML = units.map(u => {
         const isLocked = u.status === 'locked';
 
-        // 等級切換列（僅解鎖單元顯示）
-        const levelSwitcher = (!isLocked && u.all_levels) ? `
+        // 等級切換列（該單元已完成至少一次測驗才顯示）
+        const levelSwitcher = (u.last_score != null && u.all_levels) ? `
           <div style="display:flex;gap:4px;margin-top:10px">
             ${[1,2,3].map(lvl => {
               const lid = u.all_levels[lvl];
@@ -182,45 +334,7 @@
         `).join('');
       }
 
-      // 表現
-      const perfData = await LearningAPI.getPerformance();
-      const perfs = perfData.results || perfData;
-      const perfList = document.getElementById('performance-list');
-      if (!perfs.length) {
-        perfList.innerHTML = '<p style="color:#aaa">完成評量後將顯示學習表現紀錄</p>';
-        document.getElementById('stat-score').textContent = '—';
-      } else {
-        const avg = (perfs.reduce((s, p) => s + p.quiz_score_avg, 0) / perfs.length).toFixed(1);
-        document.getElementById('stat-score').textContent = avg;
-        perfList.innerHTML = `
-          <div class="card">
-            <div class="card-body">
-              <table style="width:100%;border-collapse:collapse;font-size:0.9rem">
-                <thead>
-                  <tr style="border-bottom:2px solid var(--color-border)">
-                    <th style="text-align:left;padding:8px 0">單元</th>
-                    <th style="text-align:center;padding:8px">平均分數</th>
-                    <th style="text-align:center;padding:8px">精熟度</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${perfs.map(p => `
-                    <tr style="border-bottom:1px solid var(--color-border)">
-                      <td style="padding:10px 0">${p.course_title}</td>
-                      <td style="text-align:center;font-weight:700">${p.quiz_score_avg.toFixed(1)}</td>
-                      <td style="text-align:center">
-                        <span class="card-tag" style="background:${p.proficiency === 'high' ? 'var(--color-lime)' : p.proficiency === 'medium' ? '#ddd' : '#ffcccc'}">
-                          ${profMap[p.proficiency]}
-                        </span>
-                      </td>
-                    </tr>
-                  `).join('')}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        `;
-      }
+      renderPerformance(units);
     }
 
     loadDashboard();

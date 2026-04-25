@@ -149,7 +149,7 @@ class SubmitAttemptView(views.APIView):
 
                 AdaptiveRecommendation.objects.filter(
                     student=student,
-                    recommended_lesson__order=rec_unit,
+                    recommended_lesson__order__in=[rec_unit, current_unit],
                 ).update(is_dismissed=True)
 
                 AdaptiveRecommendation.objects.create(

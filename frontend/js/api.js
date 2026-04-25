@@ -23,7 +23,7 @@ async function apiFetch(endpoint, options = {}) {
       return fetch(`${API_BASE}${endpoint}`, { ...options, headers });
     } else {
       localStorage.clear();
-      window.location.href = '/register.html';
+      window.location.href = '/login.html';
       return;
     }
   }

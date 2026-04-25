@@ -1,3 +1,4 @@
+from django.db.models import Exists, F, Max, OuterRef
 from rest_framework import generics, permissions, views, response
 from .models import LearningProgress, AdaptiveRecommendation, PerformanceRecord, AdaptiveLearningPath
 from .serializers import LearningProgressSerializer, RecommendationSerializer, PerformanceSerializer
@@ -29,8 +30,20 @@ class RecommendationListView(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return AdaptiveRecommendation.objects.filter(
-            student=self.request.user, is_dismissed=False
+        student = self.request.user
+
+        later_attempt_for_recommended_unit = QuizAttempt.objects.filter(
+            student=student,
+            quiz__lesson__order=OuterRef('recommended_lesson__order'),
+            completed_at__gt=OuterRef('created_at'),
+        )
+
+        return (
+            AdaptiveRecommendation.objects.filter(student=student, is_dismissed=False)
+            .annotate(is_stale=Exists(later_attempt_for_recommended_unit))
+            .filter(is_stale=False)
+            .select_related('recommended_lesson', 'recommended_lesson__course')
+            .order_by('-created_at')
         )
 
 
@@ -72,6 +85,12 @@ class AdaptivePathView(views.APIView):
             QuizAttempt.objects.filter(student=student)
             .values_list('quiz__lesson__order', flat=True)
         )
+        best_score_by_unit = {
+            row['unit']: row['best_score']
+            for row in QuizAttempt.objects.filter(student=student, completed_at__isnull=False)
+            .values(unit=F('quiz__lesson__order'))
+            .annotate(best_score=Max('score'))
+        }
         # 取得通過評量的單元（用於顯示狀態）
         passed_units = set(
             QuizAttempt.objects.filter(student=student, is_passed=True)
@@ -120,7 +139,8 @@ class AdaptivePathView(views.APIView):
                 'lesson_id': lesson_id,
                 'all_levels': all_levels,
                 'status': status,
-                'last_score': last_score if last_score else None,
+                'last_score': last_score if unit_num in attempted_units else None,
+                'best_score': best_score_by_unit.get(unit_num),
             })
 
         return response.Response(result)
