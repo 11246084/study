@@ -65,7 +65,9 @@
 
         if (ok) {
           showToast('登入成功！');
-          setTimeout(() => window.location.href = '/', 800);
+          const profile = await AuthAPI.getProfile();
+          const nextPage = profile && profile.role === 'admin' ? '/admin-dashboard.html' : '/';
+          setTimeout(() => window.location.href = nextPage, 800);
         } else {
           const errEl = document.getElementById('err-general');
           errEl.textContent = data?.detail || '帳號或密碼錯誤';

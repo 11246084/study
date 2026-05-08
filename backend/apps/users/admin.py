@@ -1,11 +1,25 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
+from django.contrib.auth.forms import ReadOnlyPasswordHashField, ReadOnlyPasswordHashWidget, UserChangeForm
 from django.utils.html import format_html
 from .models import User
 
 
+class HiddenPasswordHashWidget(ReadOnlyPasswordHashWidget):
+    def get_context(self, name, value, attrs):
+        context = super().get_context(name, value, attrs)
+        context['summary'] = [{'label': '密碼雜湊資訊已隱藏。'}]
+        return context
+
+
+class CustomUserChangeForm(UserChangeForm):
+    # password = ReadOnlyPasswordHashField(label='密碼')
+    password = ReadOnlyPasswordHashField(label='密碼', widget=HiddenPasswordHashWidget)
+
+
 @admin.register(User)
 class CustomUserAdmin(UserAdmin):
+    form = CustomUserChangeForm
     list_display = ('username', 'email', 'role_badge', 'student_id', 'is_active', 'date_joined')
     list_filter = ('role', 'is_active')
     search_fields = ('username', 'email', 'student_id')

@@ -14,7 +14,7 @@
   <nav class="navbar">
     <div class="navbar-logo"><a href="/"><span>AL</span> AdaptLearn</a></div>
     <ul class="navbar-links"></ul>
-    <div class="navbar-right" id="nav-right"></div>
+    <div class="navbar-right" id="nav-right" style="display:none"></div>
   </nav>
 
   <div class="dashboard-layout">
@@ -27,9 +27,19 @@
         <li><a href="#overview" class="active">📊 學習總覽</a></li>
         <li><a href="#recommendations">✨ 適性推薦</a></li>
         <li><a href="#performance">📈 學習表現</a></li>
+        <li id="admin-dashboard-link" style="display:none"><a href="admin-dashboard.html">🧭 管理總覽</a></li>
       </ul>
       <div style="margin-top:auto;padding-top:32px">
-        <button class="btn btn-outline" style="width:100%;color:#fff;border-color:#333"
+        <div style="border:1px solid #2f2f2f;border-radius:var(--radius-md);padding:14px 16px;margin-bottom:14px">
+          <div style="font-size:0.72rem;color:#777;font-weight:800;margin-bottom:8px">目前登入</div>
+          <div id="account-name" style="font-size:0.95rem;font-weight:800;color:#fff">-</div>
+          <div id="account-role" style="font-size:0.8rem;color:var(--color-lime);margin-top:2px">-</div>
+          <div id="account-email" style="font-size:0.75rem;color:#888;margin-top:6px;word-break:break-all">-</div>
+        </div>
+        <a href="profile.html" class="btn btn-outline" style="width:100%;color:#fff;border-color:#333;justify-content:center;margin-bottom:10px">
+          編輯個人資訊
+        </a>
+        <button class="btn btn-outline" style="width:100%;color:#fff;border-color:#333;justify-content:center"
           onclick="AuthAPI.logout()">登出</button>
       </div>
     </aside>
@@ -94,7 +104,7 @@
       window.location.replace('/login.html');
     }
 
-    function renderPerformance(units) {
+    function renderPerformance(units, canSeeLevels = false) {
       const performanceUnits = units.map(u => ({
         ...u,
         performance_score: u.best_score ?? u.last_score,
@@ -121,7 +131,7 @@
         const s = u.performance_score;
         const pct = s != null ? Math.round(s) : 0;
         const textColor = s != null ? 'var(--color-black)' : '#666';
-        const badge = s != null
+        const badge = canSeeLevels && s != null
           ? `<span style="font-size:0.62rem;font-weight:700;padding:1px 6px;border-radius:10px;background:${lvlBg[u.current_level]};margin-left:4px">L${u.current_level}</span>`
           : '';
         return `
@@ -135,7 +145,7 @@
               </span>
             </div>
             <div style="background:#2a2a2a;border-radius:6px;height:8px;overflow:hidden">
-              <div style="width:${pct}%;height:100%;background:${s != null ? lvlStroke[u.current_level] : 'transparent'};border-radius:6px;transition:width 0.6s ease"></div>
+              <div style="width:${pct}%;height:100%;background:${s != null ? (canSeeLevels ? lvlStroke[u.current_level] : '#a8d800') : 'transparent'};border-radius:6px;transition:width 0.6s ease"></div>
             </div>
           </div>`;
       }).join('');
@@ -251,9 +261,17 @@
 
     async function loadDashboard() {
       const profile = await AuthAPI.getProfile();
+      const canSeeLevels = profile && profile.role !== 'student';
       if (profile) {
         document.getElementById('user-greeting').textContent = `你好，${profile.username}`;
         document.getElementById('user-name').textContent = `歡迎回來，${profile.username}！今天也繼續學習吧。`;
+        const roleMap = { student: '學生', teacher: '老師', admin: '管理員' };
+        document.getElementById('account-name').textContent = profile.username;
+        document.getElementById('account-role').textContent = roleMap[profile.role] || profile.role;
+        document.getElementById('account-email').textContent = profile.email || profile.student_id || '未設定 Email';
+        if (profile.role === 'admin') {
+          document.getElementById('admin-dashboard-link').style.display = '';
+        }
       }
 
       // 學習路徑（8 個單元）
@@ -263,17 +281,19 @@
       document.getElementById('stat-enrolled').textContent = completedCount;
       document.getElementById('stat-completed').textContent = `${completedCount} / 8`;
 
-      const levelColors = { 1: '#ffcccc', 2: 'var(--color-lime)', 3: '#b3d9ff' };
       const statusLabel = { completed: '已完成', available: '進行中', locked: '尚未解鎖' };
       const statusColor = { completed: '#38a169', available: 'var(--color-black)', locked: '#aaa' };
-
+      const levelColors = { 1: '#ffcccc', 2: 'var(--color-lime)', 3: '#b3d9ff' };
       const levelShortName = {1:'L1 補救', 2:'L2 標準', 3:'L3 進階'};
+
       const unitList = document.getElementById('unit-path-list');
       unitList.innerHTML = units.map(u => {
         const isLocked = u.status === 'locked';
-
-        // 等級切換列（該單元已完成至少一次測驗才顯示）
-        const levelSwitcher = (u.last_score != null && u.all_levels) ? `
+        const levelHeader = canSeeLevels ? `
+          <div style="background:${levelColors[u.current_level]};padding:10px 16px;border-radius:var(--radius-md) var(--radius-md) 0 0;font-size:0.72rem;font-weight:800">
+            ${u.level_name}
+          </div>` : '';
+        const levelSwitcher = (canSeeLevels && u.last_score != null && u.all_levels) ? `
           <div style="display:flex;gap:4px;margin-top:10px">
             ${[1,2,3].map(lvl => {
               const lid = u.all_levels[lvl];
@@ -292,9 +312,7 @@
 
         return `
           <div class="card" style="opacity:${isLocked ? '0.5' : '1'}">
-            <div style="background:${levelColors[u.current_level]};padding:10px 16px;border-radius:var(--radius-md) var(--radius-md) 0 0;font-size:0.72rem;font-weight:800">
-              ${u.level_name}
-            </div>
+            ${levelHeader}
             <div class="card-body">
               <div style="font-size:0.75rem;color:#aaa;font-weight:700">Unit ${u.unit_number}</div>
               <div class="card-title" style="margin:4px 0 8px">${u.unit_title}</div>
@@ -326,7 +344,7 @@
             <div class="card-body" style="display:flex;justify-content:space-between;align-items:center">
               <div>
                 <div class="card-title" style="margin-bottom:4px">${r.lesson_title}</div>
-                <div class="card-desc">${r.reason}</div>
+                <div class="card-desc">${canSeeLevels ? r.reason : '根據最近一次評量，建議前往這個單元繼續學習。'}</div>
               </div>
               <a href="lesson.html?lesson_id=${r.lesson_id}" class="btn btn-lime" style="flex-shrink:0">前往學習 →</a>
             </div>
@@ -334,7 +352,7 @@
         `).join('');
       }
 
-      renderPerformance(units);
+      renderPerformance(units, canSeeLevels);
     }
 
     loadDashboard();

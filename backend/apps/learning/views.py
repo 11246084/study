@@ -37,11 +37,20 @@ class RecommendationListView(generics.ListAPIView):
             quiz__lesson__order=OuterRef('recommended_lesson__order'),
             completed_at__gt=OuterRef('created_at'),
         )
+        later_unit_attempt = QuizAttempt.objects.filter(
+            student=student,
+            quiz__lesson__order__gt=OuterRef('recommended_lesson__order'),
+            completed_at__gt=OuterRef('created_at'),
+        )
 
         return (
             AdaptiveRecommendation.objects.filter(student=student, is_dismissed=False)
-            .annotate(is_stale=Exists(later_attempt_for_recommended_unit))
+            .annotate(
+                is_stale=Exists(later_attempt_for_recommended_unit),
+                is_from_previous_unit=Exists(later_unit_attempt),
+            )
             .filter(is_stale=False)
+            .filter(is_from_previous_unit=False)
             .select_related('recommended_lesson', 'recommended_lesson__course')
             .order_by('-created_at')
         )

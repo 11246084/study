@@ -65,7 +65,7 @@
          align-items:center;justify-content:space-between;gap:20px;margin-bottom:32px;flex-wrap:wrap">
       <div>
         <span id="next-level-badge" style="font-size:0.75rem;font-weight:800;
-              background:rgba(0,0,0,0.12);padding:3px 10px;border-radius:20px;display:inline-block;margin-bottom:8px"></span>
+              background:rgba(0,0,0,0.12);padding:3px 10px;border-radius:20px;display:none;margin-bottom:8px"></span>
         <div id="next-unit-title" style="font-size:1.1rem;font-weight:800"></div>
         <div id="next-reason" style="font-size:0.85rem;margin-top:4px;opacity:0.7"></div>
       </div>
@@ -92,9 +92,13 @@
     if (!attemptId) window.location.href = '/';
 
     async function loadResult() {
-      const res = await apiFetch(`/assessments/attempts/${attemptId}/`);
+      const [res, profile] = await Promise.all([
+        apiFetch(`/assessments/attempts/${attemptId}/`),
+        AuthAPI.getProfile(),
+      ]);
       if (!res || !res.ok) { showToast('無法載入結果', 'error'); return; }
       const data = await res.json();
+      const canSeeLevels = profile && profile.role !== 'student';
 
       document.title = `評量結果 — AdaptLearn`;
 
@@ -151,25 +155,25 @@
       const nextLesson = data.next_lesson;
       const nextBanner = document.getElementById('next-lesson-banner');
       if (nextLesson) {
-        const levelColors = { 1: '#ffcccc', 2: 'var(--color-lime)', 3: '#b3d9ff' };
         const isSameUnit = nextLesson.is_same_unit;
-        let badge = '';
-        if (isSameUnit) {
-          badge = nextLesson.level > (nextLesson.level - 1) ? `⬆ 挑戰進階 — ${nextLesson.level_name}` : `⬇ 補救複習 — ${nextLesson.level_name}`;
-          // re-derive direction from reason text
-          badge = nextLesson.reason.includes('推薦挑戰') ? `⬆ 挑戰進階 — ${nextLesson.level_name}` : `⬇ 補救複習 — ${nextLesson.level_name}`;
-        } else {
-          const dirMap = { 1: '⬇ 降階', 2: '➡ 維持', 3: '⬆ 升階' };
-          badge = `${dirMap[nextLesson.level] || '➡'} — ${nextLesson.level_name}`;
-        }
         nextBanner.style.display = 'flex';
-        nextBanner.style.background = levelColors[nextLesson.level] || 'var(--color-lime)';
-        document.getElementById('next-reason').textContent = nextLesson.reason;
-        document.getElementById('next-level-badge').textContent = badge;
+        nextBanner.style.background = 'var(--color-lime)';
+        document.getElementById('next-reason').textContent = canSeeLevels
+          ? nextLesson.reason
+          : (isSameUnit
+              ? '根據最近一次評量，建議先完成這個推薦單元。'
+              : '根據最近一次評量，建議前往下一個單元。');
+        if (canSeeLevels) {
+          const badge = isSameUnit
+            ? `同單元推薦 — ${nextLesson.level_name}`
+            : `下一單元推薦 — ${nextLesson.level_name}`;
+          document.getElementById('next-level-badge').style.display = 'inline-block';
+          document.getElementById('next-level-badge').textContent = badge;
+        }
         document.getElementById('next-unit-title').textContent = isSameUnit
-          ? `同單元複習：Unit ${nextLesson.unit_number}：${nextLesson.lesson_title}`
+          ? `推薦學習：Unit ${nextLesson.unit_number}：${nextLesson.lesson_title}`
           : `Unit ${nextLesson.unit_number}：${nextLesson.lesson_title}`;
-        document.getElementById('next-lesson-btn').textContent = isSameUnit ? '前往複習 →' : '前往下一單元 →';
+        document.getElementById('next-lesson-btn').textContent = isSameUnit ? '前往推薦單元 →' : '前往下一單元 →';
         document.getElementById('next-lesson-btn').href = `lesson.html?lesson_id=${nextLesson.lesson_id}`;
       } else {
         nextBanner.innerHTML = `

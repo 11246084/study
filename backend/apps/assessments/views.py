@@ -1,4 +1,5 @@
 from django.utils import timezone
+from django.db.models import Exists, OuterRef
 from rest_framework import generics, permissions, views, response, status
 from .models import Quiz, QuizAttempt, Answer, Question, Choice
 from .serializers import QuizSerializer, AttemptSubmitSerializer, QuizAttemptSerializer
@@ -260,10 +261,29 @@ class AttemptDetailView(generics.RetrieveAPIView):
 
         # 附上最新的適性推薦（建立時間 >= 本次作答完成時間）
         current_unit = attempt.quiz.lesson.order
-        rec = AdaptiveRecommendation.objects.filter(
+        later_attempt_for_recommended_unit = QuizAttempt.objects.filter(
             student=request.user,
-            is_dismissed=False,
-        ).order_by('-created_at').first()
+            quiz__lesson__order=OuterRef('recommended_lesson__order'),
+            completed_at__gt=OuterRef('created_at'),
+        )
+        later_unit_attempt = QuizAttempt.objects.filter(
+            student=request.user,
+            quiz__lesson__order__gt=OuterRef('recommended_lesson__order'),
+            completed_at__gt=OuterRef('created_at'),
+        )
+        rec = (
+            AdaptiveRecommendation.objects.filter(
+                student=request.user,
+                is_dismissed=False,
+            )
+            .annotate(
+                is_stale=Exists(later_attempt_for_recommended_unit),
+                is_from_previous_unit=Exists(later_unit_attempt),
+            )
+            .filter(is_stale=False, is_from_previous_unit=False)
+            .order_by('-created_at')
+            .first()
+        )
 
         if rec:
             rec_level = DIFFICULTY_TO_LEVEL.get(rec.recommended_lesson.course.difficulty, 2)

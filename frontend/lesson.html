@@ -99,8 +99,8 @@
     <main>
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
         <a id="back-link" href="/" style="font-size:0.85rem;color:#aaa">← 回首頁</a>
-        <span style="color:var(--color-border)">|</span>
-        <span class="card-tag" id="lesson-tag">載入中</span>
+        <span id="lesson-tag-divider" style="color:var(--color-border);display:none">|</span>
+        <span class="card-tag" id="lesson-tag" style="display:none">載入中</span>
       </div>
 
       <div id="lesson-content" class="md-content">
@@ -152,19 +152,25 @@
 
     async function loadLesson() {
       // 同步載入單元內容 + 學習路徑
-      const [lessonRes, pathRes] = await Promise.all([
+      const [lessonRes, pathRes, profile] = await Promise.all([
         apiFetch(`/courses/lesson/${lessonId}/`),
         apiFetch('/learning/adaptive-path/'),
+        AuthAPI.getProfile(),
       ]);
 
       if (!lessonRes || !lessonRes.ok) { showToast('無法載入單元', 'error'); return; }
       const lesson = await lessonRes.json();
       const units = pathRes && pathRes.ok ? await pathRes.json() : [];
+      const canSeeLevels = profile && profile.role !== 'student';
 
       const currentUnit = lesson.order; // 1–8
 
       document.title = `${lesson.title} — AdaptLearn`;
-      document.getElementById('lesson-tag').textContent = diffMap[lesson.course_difficulty] || '';
+      if (canSeeLevels) {
+        document.getElementById('lesson-tag-divider').style.display = '';
+        document.getElementById('lesson-tag').style.display = '';
+        document.getElementById('lesson-tag').textContent = diffMap[lesson.course_difficulty] || '';
+      }
 
       // 渲染 markdown
       const html = marked.parse(lesson.content || '# 本單元內容待上傳');
@@ -187,7 +193,7 @@
         return `
           <li>
             <a href="lesson.html?lesson_id=${u.lesson_id}" class="${isActive ? 'active' : ''}">
-              <span class="num" style="background:${isActive ? 'var(--color-lime)' : levelBg[u.current_level]}">${u.unit_number}</span>
+              <span class="num" style="background:${canSeeLevels && !isActive ? levelBg[u.current_level] : ''}">${u.unit_number}</span>
               ${u.unit_title}
             </a>
           </li>`;
