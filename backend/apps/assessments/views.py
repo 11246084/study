@@ -153,13 +153,14 @@ class SubmitAttemptView(views.APIView):
                     recommended_lesson__order__in=[rec_unit, current_unit],
                 ).update(is_dismissed=True)
 
-                AdaptiveRecommendation.objects.create(
+                created_rec = AdaptiveRecommendation.objects.create(
                     student=student,
                     recommended_lesson=rec_lesson,
                     reason=reason,
                 )
 
                 next_lesson_data = {
+                    'recommendation_id': created_rec.id,
                     'lesson_id': rec_lesson.id,
                     'lesson_title': rec_lesson.title,
                     'unit_number': rec_unit,
@@ -288,6 +289,7 @@ class AttemptDetailView(generics.RetrieveAPIView):
         if rec:
             rec_level = DIFFICULTY_TO_LEVEL.get(rec.recommended_lesson.course.difficulty, 2)
             data['next_lesson'] = {
+                'recommendation_id': rec.id,
                 'lesson_id': rec.recommended_lesson.id,
                 'lesson_title': rec.recommended_lesson.title,
                 'unit_number': rec.recommended_lesson.order,

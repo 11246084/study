@@ -1,6 +1,13 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import LearningProgress, AdaptiveRecommendation, PerformanceRecord, AdaptiveLearningPath
+from .models import LearningProgress, AdaptiveRecommendation, PerformanceRecord, AdaptiveLearningPath, StudySession
+
+
+@admin.register(StudySession)
+class StudySessionAdmin(admin.ModelAdmin):
+    list_display = ('student', 'started_at', 'last_seen', 'duration_minutes')
+    search_fields = ('student__username',)
+    ordering = ('-started_at',)
 
 
 @admin.register(AdaptiveLearningPath)

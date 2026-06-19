@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>資料管理 - AdaptLearn</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <style>
+    body { background:#fbfaf6; color:#111827; min-height:100vh; }
+    .data-app { padding: 30px 34px 44px; }
+    .head { display:flex; justify-content:space-between; align-items:flex-start; gap:20px; margin-bottom:20px; }
+    .crumb { color:#667085; font-size:.78rem; font-weight:800; margin-bottom:6px; }
+    h1 { font-size:1.55rem; line-height:1.2; margin:0 0 6px; font-weight:950; letter-spacing:0; }
+    .sub { color:#667085; font-size:.9rem; }
+    .btn { border:1px solid #ddd9d0; background:#fff; color:#111827; min-height:40px; border-radius:999px; padding:0 18px; font-weight:850; font-family:inherit; cursor:pointer; }
+    .btn.primary { background:var(--color-lime); border-color:var(--color-lime); box-shadow:0 12px 28px rgba(197,241,53,.25); }
+    .toolbar, .filters, .actions, .table-card { background:#fff; border:1px solid #e4e1da; box-shadow:0 8px 22px rgba(16,16,16,.035); }
+    .toolbar { border-radius:16px 16px 0 0; padding:16px 18px; display:flex; gap:10px; align-items:center; }
+    .toolbar input { flex:1; min-height:38px; border:1px solid #ddd9d0; border-radius:999px; padding:0 16px; font-family:inherit; }
+    .filters { border-top:0; padding:14px 18px; display:flex; flex-wrap:wrap; gap:14px; }
+    .filter { display:flex; align-items:center; gap:8px; }
+    .filter label { font-size:.76rem; color:#475467; font-weight:900; }
+    .filter select { min-height:34px; border:1px solid #ddd9d0; border-radius:999px; padding:0 12px; background:#fff; font-family:inherit; }
+    .actions { border-top:0; padding:12px 18px; display:flex; justify-content:space-between; align-items:center; color:#667085; font-size:.84rem; }
+    .table-card { border-top:0; border-radius:0 0 16px 16px; overflow:hidden; }
+    .table-wrap { overflow:auto; width:100%; }
+    table { width:100%; border-collapse:collapse; min-width:980px; }
+    th, td { padding:14px 16px; border-bottom:1px solid #eceae5; text-align:left; vertical-align:middle; font-size:.86rem; }
+    th { background:#fafaf7; color:#475467; font-size:.72rem; text-transform:uppercase; letter-spacing:.06em; font-weight:950; white-space:nowrap; }
+    tr:hover td { background:#fcfcf8; }
+    .cell-muted { color:#667085; }
+    .tag { display:inline-flex; align-items:center; min-height:24px; padding:0 9px; border-radius:7px; font-size:.76rem; font-weight:850; background:#eef2ff; color:#4338ca; }
+    .tag.bool-true { background:#dcfce7; color:#15803d; }
+    .tag.bool-false { background:#fee2e2; color:#b91c1c; }
+    .row-actions { display:flex; gap:8px; }
+    .icon-btn { border:1px solid #ddd9d0; background:#fff; border-radius:999px; min-height:32px; padding:0 12px; font-weight:800; cursor:pointer; }
+    .icon-btn.danger { color:#b91c1c; }
+    .pagination { display:flex; justify-content:flex-end; gap:8px; padding:14px 18px; background:#fafaf7; }
+    .drawer { position:fixed; inset:0; display:none; z-index:20; }
+    .drawer.open { display:block; }
+    .shade { position:absolute; inset:0; background:rgba(17,24,39,.24); }
+    .panel { position:absolute; top:0; right:0; width:min(520px, 100%); height:100%; background:#fff; box-shadow:-18px 0 40px rgba(17,24,39,.18); display:flex; flex-direction:column; }
+    .panel-head { padding:22px 24px; border-bottom:1px solid #eceae5; display:flex; justify-content:space-between; align-items:center; }
+    .panel-title { font-weight:950; font-size:1.1rem; }
+    .form { padding:22px 24px; overflow:auto; display:grid; gap:14px; }
+    .field label { display:block; font-size:.78rem; color:#475467; font-weight:900; margin-bottom:6px; }
+    .field input, .field textarea, .field select { width:100%; border:1px solid #ddd9d0; border-radius:10px; padding:10px 12px; font-family:inherit; }
+    .field textarea { min-height:96px; resize:vertical; }
+    .panel-foot { margin-top:auto; padding:16px 24px; border-top:1px solid #eceae5; display:flex; justify-content:flex-end; gap:10px; background:#fafaf7; }
+    .empty { padding:32px; color:#667085; text-align:center; }
+
+    /* === 問卷成績登錄（僅 survey_scores 模式顯示）=== */
+    .survey-tools { display:grid; grid-template-columns:1.3fr 1fr; gap:16px; margin-bottom:20px; }
+    @media (max-width:900px){ .survey-tools{ grid-template-columns:1fr; } }
+    .st-card { background:#fff; border:1px solid #e4e1da; border-radius:16px; box-shadow:0 8px 22px rgba(16,16,16,.035); padding:18px 20px; }
+    .st-title { font-weight:900; font-size:.98rem; margin-bottom:4px; }
+    .st-hint { color:#667085; font-size:.8rem; line-height:1.6; }
+    .st-hint code { background:#f3f4ed; padding:1px 5px; border-radius:5px; font-size:.78rem; }
+    .st-row { display:flex; flex-wrap:wrap; gap:16px; align-items:flex-end; margin-bottom:12px; }
+    .st-field label { display:block; font-size:.72rem; color:#475467; font-weight:900; margin-bottom:5px; }
+    .st-field select { min-height:40px; border:1px solid #ddd9d0; border-radius:10px; padding:0 12px; background:#fff; font-family:inherit; min-width:200px; }
+    .st-seg { display:inline-flex; border:1px solid #ddd9d0; border-radius:999px; overflow:hidden; }
+    .st-seg button { border:0; background:#fff; padding:9px 18px; font-family:inherit; font-weight:850; cursor:pointer; color:#475467; }
+    .st-seg button.active { background:var(--color-lime); color:#111827; }
+    .st-meta { font-size:.74rem; color:#667085; display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    .st-meta .pill { background:#f3f4ed; border-radius:999px; padding:3px 9px; font-weight:800; }
+    .st-meta .pill.warn { background:#fef3c7; color:#92400e; }
+    .st-grid-wrap { max-height:340px; overflow:auto; border:1px solid #eceae5; border-radius:12px; }
+    .st-grid-wrap table { min-width:0; }
+    .st-grid-wrap td .score-in { width:90px; border:1px solid #ddd9d0; border-radius:8px; padding:6px 9px; font-family:inherit; }
+    .st-grid-wrap td .score-in.bad { border-color:#dc2626; background:#fef2f2; }
+    .st-savebar { display:flex; align-items:center; gap:12px; margin-top:14px; }
+    .st-savebar .msg { font-size:.82rem; font-weight:800; }
+    .st-savebar .msg.ok { color:#15803d; } .st-savebar .msg.err { color:#b91c1c; }
+    textarea#st-csv { width:100%; min-height:120px; resize:vertical; border:1px solid #ddd9d0; border-radius:10px; padding:10px 12px; font-family:ui-monospace,monospace; font-size:.8rem; margin-top:8px; }
+  </style>
+</head>
+<body>
+  <main class="data-app">
+    <header class="head">
+      <div>
+        <div class="crumb">AdaptLearn / 管理中心 / 資料</div>
+        <h1 id="title">資料管理</h1>
+        <div class="sub">直接透過 API 管理資料，不使用 Django admin iframe。</div>
+      </div>
+      <button class="btn primary" id="create-btn">+ 新增資料</button>
+    </header>
+
+    <section class="survey-tools" id="survey-tools" hidden>
+      <div class="st-card">
+        <div class="st-title">批次登錄</div>
+        <div class="st-row">
+          <div class="st-field">
+            <label>構念</label>
+            <select id="st-scale"></select>
+          </div>
+          <div class="st-field">
+            <label>階段</label>
+            <div class="st-seg" id="st-phase">
+              <button data-phase="pre" class="active" type="button">前測</button>
+              <button data-phase="post" type="button">後測</button>
+            </div>
+          </div>
+          <div class="st-meta" id="st-meta"></div>
+        </div>
+        <div class="st-grid-wrap" id="st-grid"><div class="empty">載入中…</div></div>
+        <div class="st-savebar">
+          <button class="btn primary" id="st-save" type="button">儲存本頁分數</button>
+          <span class="msg" id="st-msg"></span>
+        </div>
+      </div>
+      <div class="st-card">
+        <div class="st-title">CSV 匯入（寬表）</div>
+        <div class="st-hint">第一欄為 <code>username</code> 或學號；其餘欄位標題為 <code>構念代碼_pre</code> / <code>構念代碼_post</code>（例如 <code>anxiety_post</code>）。空白儲存格略過，可直接從 Excel 貼上。</div>
+        <textarea id="st-csv" placeholder="username,anxiety_pre,anxiety_post&#10;student01,3.8,2.6"></textarea>
+        <div class="st-savebar">
+          <button class="btn" id="st-tpl" type="button">產生標題範本</button>
+          <button class="btn primary" id="st-import" type="button">匯入</button>
+        </div>
+        <div class="st-hint" id="st-import-result" style="margin-top:10px"></div>
+      </div>
+    </section>
+
+    <section class="toolbar">
+      <input id="search-input" type="search" placeholder="搜尋目前資料表" />
+      <button class="btn" id="search-btn">搜尋</button>
+      <button class="btn" id="reset-btn">重設</button>
+    </section>
+    <section class="filters" id="filters"></section>
+    <section class="actions">
+      <span id="count-label">0 筆資料</span>
+      <span id="status-label"></span>
+    </section>
+    <section class="table-card">
+      <div class="table-wrap">
+        <table>
+          <thead><tr id="table-head"></tr></thead>
+          <tbody id="table-body"></tbody>
+        </table>
+      </div>
+      <div class="pagination">
+        <button class="btn" id="prev-btn">上一頁</button>
+        <button class="btn" id="next-btn">下一頁</button>
+      </div>
+    </section>
+  </main>
+
+  <aside class="drawer" id="drawer">
+    <div class="shade" id="drawer-close"></div>
+    <form class="panel" id="edit-form">
+      <div class="panel-head">
+        <div class="panel-title" id="drawer-title">編輯資料</div>
+        <button class="icon-btn" type="button" id="drawer-x">關閉</button>
+      </div>
+      <div class="form" id="form-fields"></div>
+      <div class="panel-foot">
+        <button class="btn" type="button" id="cancel-btn">取消</button>
+        <button class="btn primary" type="submit">儲存</button>
+      </div>
+    </form>
+  </aside>
+
+  <script src="js/api.js"></script>
+  <script>
+    const state = {
+      model: new URLSearchParams(location.search).get('model') || 'attempts',
+      page: 1,
+      data: null,
+      editing: null,
+      creating: false,
+    };
+
+    const modelLabels = {
+      users: '使用者', courses: '課程', lessons: '單元', enrollments: '選課紀錄',
+      quizzes: '評量', questions: '題目', attempts: '作答紀錄',
+      adaptive: '適性路徑', recommendations: '推薦紀錄',
+      progress: '學習進度', performance: '學習表現',
+      survey_scales: '問卷構念', survey_scores: '問卷成績',
+    };
+
+    function valueText(value) {
+      if (value && typeof value === 'object' && 'label' in value) return value.label;
+      if (value === true) return '是';
+      if (value === false) return '否';
+      if (value === null || value === undefined || value === '') return '-';
+      return value;
+    }
+
+    function inputValue(value) {
+      if (value && typeof value === 'object' && 'id' in value) return value.id;
+      if (value === true) return 'true';
+      if (value === false) return 'false';
+      return value ?? '';
+    }
+
+    // ===== 問卷成績登錄面板（只在 survey_scores 模式顯示）=====
+    const surveyState = { scales: null, phase: 'pre', initialized: false };
+
+    async function ensureSurveyTools() {
+      if (surveyState.initialized) return;
+      surveyState.initialized = true;
+      surveyState.scales = await SurveyAPI.scales();
+      const sel = document.getElementById('st-scale');
+      sel.innerHTML = surveyState.scales.map(s =>
+        `<option value="${s.key}">${s.group ? s.group + ' · ' : ''}${s.name}</option>`).join('');
+      sel.addEventListener('change', loadSurveyGrid);
+      document.querySelectorAll('#st-phase button').forEach(b => b.addEventListener('click', () => {
+        surveyState.phase = b.dataset.phase;
+        document.querySelectorAll('#st-phase button').forEach(x => x.classList.toggle('active', x === b));
+        loadSurveyGrid();
+      }));
+      document.getElementById('st-save').addEventListener('click', saveSurveyGrid);
+      document.getElementById('st-tpl').addEventListener('click', surveyTemplate);
+      document.getElementById('st-import').addEventListener('click', surveyImport);
+    }
+
+    function curScale() {
+      return (surveyState.scales || []).find(s => s.key === document.getElementById('st-scale').value);
+    }
+
+    function renderSurveyMeta() {
+      const s = curScale();
+      if (!s) { document.getElementById('st-meta').innerHTML = ''; return; }
+      document.getElementById('st-meta').innerHTML = `
+        <span class="pill">範圍 ${s.score_min}–${s.score_max}</span>
+        <span class="pill ${s.higher_is_better ? '' : 'warn'}">${s.higher_is_better ? '高分較好' : '低分較好'}</span>
+        ${s.post_only ? '<span class="pill warn">僅後測</span>' : ''}`;
+    }
+
+    async function loadSurveyGrid() {
+      const s = curScale();
+      renderSurveyMeta();
+      document.getElementById('st-msg').textContent = '';
+      const wrap = document.getElementById('st-grid');
+      if (s && s.post_only && surveyState.phase === 'pre') {
+        wrap.innerHTML = '<div class="empty">此量表僅施測後測，請切換到「後測」。</div>';
+        return;
+      }
+      wrap.innerHTML = '<div class="empty">載入中…</div>';
+      const data = await SurveyAPI.grid(s.key, surveyState.phase);
+      if (!data) { wrap.innerHTML = '<div class="empty">載入失敗</div>'; return; }
+      if (!data.rows.length) { wrap.innerHTML = '<div class="empty">尚無學生帳號</div>'; return; }
+      wrap.innerHTML = `<table>
+        <thead><tr><th>學生</th><th>學號</th><th>分數（${surveyState.phase === 'pre' ? '前測' : '後測'}）</th></tr></thead>
+        <tbody>${data.rows.map(r => `<tr>
+          <td>${r.username}</td><td class="cell-muted">${r.student_no || '—'}</td>
+          <td><input class="score-in" type="number" step="0.01" min="${s.score_min}" max="${s.score_max}"
+               data-id="${r.student_id}" value="${r.score ?? ''}" /></td></tr>`).join('')}</tbody></table>`;
+      wrap.querySelectorAll('.score-in').forEach(inp => inp.addEventListener('input', () => {
+        const v = inp.value.trim();
+        inp.classList.toggle('bad', v !== '' && (isNaN(+v) || +v < s.score_min || +v > s.score_max));
+      }));
+    }
+
+    async function saveSurveyGrid() {
+      const s = curScale();
+      if (!s) return;
+      const scores = {};
+      let bad = false;
+      document.querySelectorAll('#st-grid .score-in').forEach(inp => {
+        if (inp.classList.contains('bad')) bad = true;
+        scores[inp.dataset.id] = inp.value.trim();
+      });
+      const msg = document.getElementById('st-msg');
+      if (bad) { msg.className = 'msg err'; msg.textContent = '有分數超出範圍，請修正。'; return; }
+      const btn = document.getElementById('st-save');
+      btn.disabled = true; msg.className = 'msg'; msg.textContent = '儲存中…';
+      const { ok, data } = await SurveyAPI.saveBatch(s.key, surveyState.phase, scores);
+      btn.disabled = false;
+      if (ok) {
+        msg.className = 'msg ok';
+        msg.textContent = `已儲存 ${data.saved} 筆${data.removed ? '、移除 ' + data.removed + ' 筆' : ''}。`;
+        loadData();
+      } else { msg.className = 'msg err'; msg.textContent = '儲存失敗。'; }
+    }
+
+    function surveyTemplate() {
+      const cols = ['username'];
+      (surveyState.scales || []).forEach(s => {
+        if (!s.post_only) cols.push(`${s.key}_pre`);
+        cols.push(`${s.key}_post`);
+      });
+      document.getElementById('st-csv').value = cols.join(',') + '\n';
+    }
+
+    async function surveyImport() {
+      const text = document.getElementById('st-csv').value.trim();
+      const out = document.getElementById('st-import-result');
+      if (!text) { out.innerHTML = '<span style="color:#b91c1c">請先貼上 CSV。</span>'; return; }
+      const btn = document.getElementById('st-import');
+      btn.disabled = true; out.textContent = '匯入中…';
+      const { ok, data } = await SurveyAPI.importCsv(text);
+      btn.disabled = false;
+      if (!ok || !data) { out.innerHTML = '<span style="color:#b91c1c">匯入失敗，請檢查格式。</span>'; return; }
+      let html = `<span style="color:#15803d;font-weight:850">✓ 寫入 ${data.saved} 筆。</span>`;
+      if (data.unknown_columns?.length) html += ` <span style="color:#92400e">略過未知欄位：${data.unknown_columns.join('、')}</span>`;
+      if (data.unmatched_students?.length) html += ` <span style="color:#b91c1c">找不到學生：${data.unmatched_students.join('、')}</span>`;
+      out.innerHTML = html;
+      loadSurveyGrid();
+      loadData();
+    }
+
+    async function toggleSurveyTools() {
+      const on = state.model === 'survey_scores';
+      document.getElementById('survey-tools').hidden = !on;
+      if (on) { await ensureSurveyTools(); await loadSurveyGrid(); }
+    }
+
+    async function loadData() {
+      toggleSurveyTools();
+      document.getElementById('status-label').textContent = '載入中...';
+      const params = new URLSearchParams({ page: state.page, page_size: 25 });
+      const search = document.getElementById('search-input').value.trim();
+      if (search) params.set('search', search);
+      document.querySelectorAll('[data-filter]').forEach(select => {
+        if (select.value !== '') params.set(select.dataset.filter, select.value);
+      });
+
+      try {
+        const res = await apiFetch(`/auth/admin/data/${state.model}/?${params.toString()}`);
+        if (!res || !res.ok) {
+          document.getElementById('status-label').textContent = '載入失敗';
+          return;
+        }
+        state.data = await res.json();
+        render();
+        document.getElementById('status-label').textContent = '';
+      } catch (error) {
+        console.error(error);
+        document.getElementById('status-label').textContent = '載入失敗';
+      } finally {
+        parent.postMessage({ type: 'adaptlearn:data-ready', model: state.model }, window.location.origin);
+      }
+    }
+
+    function renderFilters() {
+      const filters = state.data.filters || {};
+      document.getElementById('filters').innerHTML = Object.entries(filters).map(([name, choices]) => `
+        <label class="filter">
+          <span>${name}</span>
+          <select data-filter="${name}">
+            <option value="">全部</option>
+            ${choices.map(choice => `<option value="${choice}">${valueText(choice)}</option>`).join('')}
+          </select>
+        </label>
+      `).join('');
+      document.querySelectorAll('[data-filter]').forEach(select => {
+        select.addEventListener('change', () => { state.page = 1; loadData(); });
+      });
+    }
+
+    function render() {
+      document.getElementById('title').textContent = `管理 ${state.data.title}`;
+      document.getElementById('count-label').textContent = `${state.data.count} 筆資料`;
+      renderFilters();
+      document.getElementById('table-head').innerHTML = `
+        ${state.data.columns.map(col => `<th>${col.name}</th>`).join('')}
+        <th>操作</th>
+      `;
+      const body = document.getElementById('table-body');
+      if (!state.data.results.length) {
+        body.innerHTML = `<tr><td class="empty" colspan="${state.data.columns.length + 1}">沒有資料</td></tr>`;
+        return;
+      }
+      body.innerHTML = state.data.results.map(row => `
+        <tr>
+          ${state.data.columns.map(col => {
+            const value = row[col.name];
+            const cls = typeof value === 'boolean' ? `tag bool-${value}` : '';
+            return `<td><span class="${cls}">${valueText(value)}</span></td>`;
+          }).join('')}
+          <td>
+            <div class="row-actions">
+              <button class="icon-btn" type="button" data-edit="${row.id}">編輯</button>
+              <button class="icon-btn danger" type="button" data-delete="${row.id}">刪除</button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+      body.querySelectorAll('[data-edit]').forEach(btn => btn.addEventListener('click', () => openDrawer(false, btn.dataset.edit)));
+      body.querySelectorAll('[data-delete]').forEach(btn => btn.addEventListener('click', () => deleteRow(btn.dataset.delete)));
+    }
+
+    function fieldControl(field, row = {}) {
+      const value = inputValue(row[field.name]);
+      if (field.type === 'BooleanField') {
+        return `<select name="${field.name}"><option value="true" ${value === 'true' ? 'selected' : ''}>是</option><option value="false" ${value === 'false' ? 'selected' : ''}>否</option></select>`;
+      }
+      if (field.choices) {
+        return `<select name="${field.name}">${field.choices.map(choice => `<option value="${choice.value}" ${String(value) === String(choice.value) ? 'selected' : ''}>${choice.label}</option>`).join('')}</select>`;
+      }
+      if (field.type === 'ForeignKey') {
+        return `<select name="${field.name}"><option value="">-</option>${(field.options || []).map(option => `<option value="${option.value}" ${String(value) === String(option.value) ? 'selected' : ''}>${option.label}</option>`).join('')}</select>`;
+      }
+      if (field.type === 'TextField') {
+        return `<textarea name="${field.name}">${value}</textarea>`;
+      }
+      return `<input name="${field.name}" type="${field.type === 'password' ? 'password' : 'text'}" value="${value}" />`;
+    }
+
+    function openDrawer(create, id = null) {
+      state.creating = create;
+      state.editing = create ? null : state.data.results.find(row => String(row.id) === String(id));
+      const fields = create ? state.data.create_fields : state.data.editable_fields;
+      document.getElementById('drawer-title').textContent = create ? `新增 ${state.data.title}` : `編輯 ${state.data.title}`;
+      document.getElementById('form-fields').innerHTML = fields.map(field => `
+        <div class="field">
+          <label>${field.name}</label>
+          ${fieldControl(field, state.editing || {})}
+        </div>
+      `).join('');
+      document.getElementById('drawer').classList.add('open');
+    }
+
+    function closeDrawer() {
+      document.getElementById('drawer').classList.remove('open');
+    }
+
+    async function saveForm(event) {
+      event.preventDefault();
+      const data = Object.fromEntries(new FormData(event.currentTarget).entries());
+      const endpoint = state.creating
+        ? `/auth/admin/data/${state.model}/`
+        : `/auth/admin/data/${state.model}/${state.editing.id}/`;
+      const res = await apiFetch(endpoint, {
+        method: state.creating ? 'POST' : 'PATCH',
+        body: JSON.stringify(data),
+      });
+      if (res && res.ok) {
+        closeDrawer();
+        loadData();
+      } else {
+        alert('儲存失敗，請檢查欄位');
+      }
+    }
+
+    async function deleteRow(id) {
+      if (!confirm('確定要刪除這筆資料？')) return;
+      const res = await apiFetch(`/auth/admin/data/${state.model}/${id}/`, { method: 'DELETE' });
+      if (res && res.ok) loadData();
+    }
+
+    window.addEventListener('message', event => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.type !== 'adaptlearn:data-model') return;
+      state.model = event.data.model;
+      state.page = 1;
+      history.replaceState(null, '', `?model=${encodeURIComponent(state.model)}`);
+      document.getElementById('search-input').value = '';
+      loadData();
+    });
+
+    document.getElementById('search-btn').addEventListener('click', () => { state.page = 1; loadData(); });
+    document.getElementById('reset-btn').addEventListener('click', () => { document.getElementById('search-input').value = ''; state.page = 1; loadData(); });
+    document.getElementById('create-btn').addEventListener('click', () => openDrawer(true));
+    document.getElementById('prev-btn').addEventListener('click', () => { if (state.page > 1) { state.page -= 1; loadData(); } });
+    document.getElementById('next-btn').addEventListener('click', () => { if (state.data && state.page * state.data.page_size < state.data.count) { state.page += 1; loadData(); } });
+    document.getElementById('drawer-close').addEventListener('click', closeDrawer);
+    document.getElementById('drawer-x').addEventListener('click', closeDrawer);
+    document.getElementById('cancel-btn').addEventListener('click', closeDrawer);
+    document.getElementById('edit-form').addEventListener('submit', saveForm);
+
+    loadData();
+  </script>
+</body>
+</html>

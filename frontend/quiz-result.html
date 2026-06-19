@@ -175,6 +175,11 @@
           : `Unit ${nextLesson.unit_number}：${nextLesson.lesson_title}`;
         document.getElementById('next-lesson-btn').textContent = isSameUnit ? '前往推薦單元 →' : '前往下一單元 →';
         document.getElementById('next-lesson-btn').href = `lesson.html?lesson_id=${nextLesson.lesson_id}`;
+        // 記錄推薦卡點擊（RQ-04 推薦接受度埋點）
+        if (nextLesson.recommendation_id) {
+          document.getElementById('next-lesson-btn').addEventListener('click', () =>
+            LearningAPI.clickRecommendation(nextLesson.recommendation_id));
+        }
       } else {
         nextBanner.innerHTML = `
           <div>

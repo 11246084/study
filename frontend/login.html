@@ -66,7 +66,7 @@
         if (ok) {
           showToast('登入成功！');
           const profile = await AuthAPI.getProfile();
-          const nextPage = profile && profile.role === 'admin' ? '/admin-dashboard.html' : '/';
+          const nextPage = profile && profile.role === 'admin' ? '/admin-shell.html#analytics' : '/';
           setTimeout(() => window.location.href = nextPage, 800);
         } else {
           const errEl = document.getElementById('err-general');

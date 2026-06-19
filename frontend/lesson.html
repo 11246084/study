@@ -10,6 +10,10 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css" />
   <link rel="stylesheet" href="css/style.css" />
   <style>
+    /* === Embedded 模式 === */
+    body.embedded .navbar { display: none !important; }
+    body.embedded .lesson-layout { padding: 24px 32px !important; gap: 28px !important; }
+
     .lesson-layout {
       display: grid;
       grid-template-columns: 260px 1fr;
@@ -98,7 +102,7 @@
     <!-- 主內容 -->
     <main>
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
-        <a id="back-link" href="/" style="font-size:0.85rem;color:#aaa">← 回首頁</a>
+        <a id="back-link" href="/" style="font-size:0.85rem;color:#aaa">← 返回</a>
         <span id="lesson-tag-divider" style="color:var(--color-border);display:none">|</span>
         <span class="card-tag" id="lesson-tag" style="display:none">載入中</span>
       </div>
@@ -129,13 +133,43 @@
   <script src="js/api.js"></script>
   <script src="js/main.js"></script>
   <script>
-    if (!localStorage.getItem('access_token')) {
-      window.location.href = 'login.html';
-    }
-
     const params = new URLSearchParams(window.location.search);
     const lessonId = params.get('lesson_id');
-    if (!lessonId) window.location.href = '/';
+    const IS_EMBEDDED = params.get('embedded') === '1';
+    const EMBEDDED_SFX = IS_EMBEDDED ? '&embedded=1' : '';
+    if (IS_EMBEDDED) document.body.classList.add('embedded');
+
+    if (!IS_EMBEDDED && !localStorage.getItem('access_token')) {
+      window.location.href = 'login.html';
+    }
+    if (!lessonId) {
+      window.location.href = IS_EMBEDDED ? 'courses.html?embedded=1' : '/';
+    }
+
+    // 立刻把 back-link 預設成安全 URL，避免使用者在 loadLesson 完成前點到預設的 "/"
+    if (IS_EMBEDDED) {
+      const _bl = document.getElementById('back-link');
+      if (_bl) {
+        _bl.href = 'courses.html?embedded=1';
+        _bl.textContent = '← 返回課程列表';
+      }
+    }
+
+    // ── 教材瀏覽 / 線上時數埋點（RQ-05 投入度代理變數）──────────────
+    if (lessonId && localStorage.getItem('access_token')) {
+      LearningAPI.recordActivity(lessonId, 0); // 計一次瀏覽
+      let activeSince = Date.now();
+      const flushTime = () => {
+        const secs = Math.round((Date.now() - activeSince) / 1000);
+        activeSince = Date.now();
+        if (secs > 0 && secs < 7200) LearningAPI.recordActivity(lessonId, secs);
+      };
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') flushTime();
+        else activeSince = Date.now();
+      });
+      window.addEventListener('pagehide', flushTime);
+    }
 
     const diffMap = { beginner: 'Level 1 補救版', intermediate: 'Level 2 標準版', advanced: 'Level 3 進階版' };
 
@@ -160,8 +194,16 @@
 
       if (!lessonRes || !lessonRes.ok) { showToast('無法載入單元', 'error'); return; }
       const lesson = await lessonRes.json();
+
+      // embedded 模式：back-link 改成回該課程詳情頁
+      if (IS_EMBEDDED && lesson.course) {
+        document.getElementById('back-link').href = `course-detail.html?id=${lesson.course}&embedded=1`;
+        document.getElementById('back-link').textContent = '← 回課程單元列表';
+      }
       const units = pathRes && pathRes.ok ? await pathRes.json() : [];
       const canSeeLevels = profile && profile.role !== 'student';
+      // admin / teacher 可以無視鎖定，自由瀏覽所有單元（用於內容預覽 / 測試）
+      const canBrowseAll = canSeeLevels;
 
       const currentUnit = lesson.order; // 1–8
 
@@ -182,7 +224,8 @@
       const nav = document.getElementById('lesson-nav');
       nav.innerHTML = units.map(u => {
         const isActive = u.unit_number === currentUnit;
-        if (u.status === 'locked') {
+        const isLockedForUser = u.status === 'locked' && !canBrowseAll;
+        if (isLockedForUser) {
           return `
             <li>
               <a style="opacity:0.35;cursor:not-allowed;pointer-events:none;display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:var(--radius-sm);font-size:0.88rem;color:#aaa">
@@ -190,11 +233,16 @@
               </a>
             </li>`;
         }
+        // admin/teacher 看到原本鎖住的單元時加個 hint badge，但仍可點
+        const adminHint = (u.status === 'locked' && canBrowseAll)
+          ? `<span style="font-size:0.65rem;background:#FEF4E1;color:#7a5200;padding:1px 6px;border-radius:8px;margin-left:auto;font-weight:700">預覽</span>`
+          : '';
         return `
           <li>
-            <a href="lesson.html?lesson_id=${u.lesson_id}" class="${isActive ? 'active' : ''}">
+            <a href="lesson.html?lesson_id=${u.lesson_id}${EMBEDDED_SFX}" class="${isActive ? 'active' : ''}">
               <span class="num" style="background:${canSeeLevels && !isActive ? levelBg[u.current_level] : ''}">${u.unit_number}</span>
               ${u.unit_title}
+              ${adminHint}
             </a>
           </li>`;
       }).join('');
@@ -204,16 +252,18 @@
         const prevUnit = units.find(u => u.unit_number === currentUnit - 1);
         if (prevUnit && prevUnit.lesson_id) {
           const btn = document.getElementById('prev-btn');
-          btn.href = `lesson.html?lesson_id=${prevUnit.lesson_id}`;
+          btn.href = `lesson.html?lesson_id=${prevUnit.lesson_id}${EMBEDDED_SFX}`;
           btn.textContent = `← ${prevUnit.unit_title}`;
           btn.style.display = '';
         }
       }
       if (currentUnit < 8) {
         const nextUnit = units.find(u => u.unit_number === currentUnit + 1);
-        if (nextUnit && nextUnit.status !== 'locked' && nextUnit.lesson_id) {
+        // admin/teacher 可預覽鎖住的下一單元
+        const nextAccessible = nextUnit && nextUnit.lesson_id && (nextUnit.status !== 'locked' || canBrowseAll);
+        if (nextAccessible) {
           const btn = document.getElementById('next-btn');
-          btn.href = `lesson.html?lesson_id=${nextUnit.lesson_id}`;
+          btn.href = `lesson.html?lesson_id=${nextUnit.lesson_id}${EMBEDDED_SFX}`;
           btn.textContent = `${nextUnit.unit_title} →`;
           btn.style.display = '';
         }
@@ -226,7 +276,7 @@
         const quizzes = quizData.results || quizData;
         if (quizzes.length > 0) {
           document.getElementById('quiz-banner').style.display = 'flex';
-          document.getElementById('quiz-link').href = `quiz.html?quiz_id=${quizzes[0].id}&lesson_id=${lessonId}`;
+          document.getElementById('quiz-link').href = `quiz.html?quiz_id=${quizzes[0].id}&lesson_id=${lessonId}${EMBEDDED_SFX}`;
         }
       }
     }

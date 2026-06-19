@@ -10,7 +10,7 @@ class Course(models.Model):
     ]
     title = models.CharField(max_length=200, verbose_name='課程名稱')
     description = models.TextField(verbose_name='課程描述')
-    teacher = models.ForeignKey(User, on_delete=models.CASCADE, related_name='taught_courses', verbose_name='授課教師')
+    teacher = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='taught_courses', verbose_name='授課教師')
     difficulty = models.CharField(max_length=20, choices=DIFFICULTY_CHOICES, default='beginner', verbose_name='難度')
     cover_image = models.ImageField(upload_to='courses/', null=True, blank=True, verbose_name='封面圖')
     is_active = models.BooleanField(default=True, verbose_name='是否開放')
@@ -49,8 +49,8 @@ class Lesson(models.Model):
 
 
 class Enrollment(models.Model):
-    student = models.ForeignKey(User, on_delete=models.CASCADE, related_name='enrollments', verbose_name='學生')
-    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='enrollments', verbose_name='課程')
+    student = models.ForeignKey(User, on_delete=models.PROTECT, related_name='enrollments', verbose_name='學生')
+    course = models.ForeignKey(Course, on_delete=models.PROTECT, related_name='enrollments', verbose_name='課程')
     enrolled_at = models.DateTimeField(auto_now_add=True)
     progress = models.FloatField(default=0.0, verbose_name='進度(%)')
 

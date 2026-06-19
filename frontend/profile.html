@@ -7,6 +7,12 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/style.css" />
   <style>
+    /* === Embedded 模式：在 admin-shell iframe 內隱藏 navbar/sidebar === */
+    body.embedded .navbar,
+    body.embedded .profile-layout > .sidebar { display: none !important; }
+    body.embedded .profile-layout { grid-template-columns: 1fr !important; }
+    body.embedded .main-content { padding: 24px 32px !important; }
+
     .profile-layout {
       display: grid;
       grid-template-columns: 240px 1fr;
@@ -46,11 +52,7 @@
 
   <nav class="navbar">
     <div class="navbar-logo"><a href="index.html"><span>AL</span> AdaptLearn</a></div>
-    <ul class="navbar-links">
-      <li><a href="index.html">首頁</a></li>
-      <li><a href="courses.html">課程</a></li>
-      <li><a href="/">學習中心</a></li>
-    </ul>
+    <ul class="navbar-links"></ul>
     <div class="navbar-right" id="nav-right"></div>
   </nav>
 
@@ -64,7 +66,6 @@
         <li><a href="/#my-courses">📚 我的課程</a></li>
         <li><a href="/#recommendations">✨ 適性推薦</a></li>
         <li><a href="profile.html" class="active">👤 個人資料</a></li>
-        <li><a href="courses.html">🔍 瀏覽課程</a></li>
       </ul>
       <div style="margin-top:auto;padding-top:32px">
         <button class="btn btn-outline" style="width:100%;color:#fff;border-color:#333"
@@ -132,12 +133,16 @@
             <div class="profile-section-title" style="margin-top:32px">修改密碼</div>
             <form id="password-form">
               <div class="form-group">
+                <label class="form-label">目前密碼</label>
+                <input class="form-input" type="password" id="old-password" autocomplete="current-password" />
+              </div>
+              <div class="form-group">
                 <label class="form-label">新密碼</label>
-                <input class="form-input" type="password" id="new-password" placeholder="至少 8 個字元" />
+                <input class="form-input" type="password" id="new-password" autocomplete="new-password" placeholder="至少 8 個字元" />
               </div>
               <div class="form-group">
                 <label class="form-label">確認新密碼</label>
-                <input class="form-input" type="password" id="confirm-password" placeholder="再輸入一次" />
+                <input class="form-input" type="password" id="confirm-password" autocomplete="new-password" placeholder="再輸入一次" />
                 <div class="form-error" id="err-password"></div>
               </div>
               <button type="submit" class="btn btn-outline" style="width:100%;justify-content:center">
@@ -157,17 +162,50 @@
         </div>
       </div>
 
+      <!-- 我的學習成長報表 -->
+      <div style="margin-top:32px" id="growth-wrap">
+        <div class="profile-card" style="max-width:100%">
+          <div class="profile-section-title">我的學習成長報表</div>
+          <div id="growth-report"><p style="color:#888">載入中…</p></div>
+        </div>
+      </div>
+
     </main>
   </div>
 
   <script src="js/api.js"></script>
   <script src="js/main.js"></script>
   <script>
-    if (!localStorage.getItem('access_token')) window.location.href = 'login.html';
+    // === embedded 偵測 ===
+    const IS_EMBEDDED = new URLSearchParams(window.location.search).get('embedded') === '1';
+    if (IS_EMBEDDED) document.body.classList.add('embedded');
+
+    if (!IS_EMBEDDED && !localStorage.getItem('access_token')) window.location.href = 'login.html';
 
     const roleMap = { student: '學生', teacher: '教師', admin: '管理員' };
 
+    // 非 embedded 且 admin → 自動跳回 shell（避免看到學生視角的舊側欄/連結）
+    // 在 iframe 內就不跳 shell（避免套娃），改成補 embedded 自我重整
+    async function redirectAdminIfDirect() {
+      if (IS_EMBEDDED) return false;
+      const profile = await AuthAPI.getProfile();
+      if (profile && profile.role === 'admin') {
+        if (window.self !== window.top) {
+          const u = new URL(window.location.href);
+          u.searchParams.set('embedded', '1');
+          window.location.replace(u.toString());
+        } else {
+          window.location.replace('/admin-shell.html#profile');
+        }
+        return true;
+      }
+      return false;
+    }
+
     async function loadProfile() {
+      // admin 直接打開本頁 → 改成跳 shell（除非已是 embedded 模式由 shell 載入）
+      if (await redirectAdminIfDirect()) return;
+
       const profile = await AuthAPI.getProfile();
       if (!profile) { showToast('無法載入個人資料', 'error'); return; }
 
@@ -206,20 +244,94 @@
 
     document.getElementById('password-form').addEventListener('submit', async (e) => {
       e.preventDefault();
+      const oldPassword = document.getElementById('old-password').value;
       const p1 = document.getElementById('new-password').value;
       const p2 = document.getElementById('confirm-password').value;
       const errEl = document.getElementById('err-password');
       errEl.style.display = 'none';
+      if (!oldPassword || !p1 || !p2) {
+        errEl.textContent = '請完整填寫目前密碼與新密碼';
+        errEl.style.display = 'block';
+        return;
+      }
       if (p1 !== p2) {
         errEl.textContent = '兩次密碼不一致';
         errEl.style.display = 'block';
         return;
       }
-      // 密碼修改需後端另外實作 change-password endpoint，此處僅示意
-      showToast('密碼修改功能開發中', 'error');
+      const { ok, data } = await AuthAPI.changePassword({
+        old_password: oldPassword,
+        new_password: p1,
+        new_password2: p2,
+      });
+      if (ok) {
+        document.getElementById('password-form').reset();
+        showToast('密碼已更新，請重新登入');
+        setTimeout(() => AuthAPI.logout(), 900);
+      } else {
+        const message = data?.old_password?.[0] || data?.new_password?.[0] || data?.non_field_errors?.[0] || '密碼更新失敗';
+        errEl.textContent = message;
+        errEl.style.display = 'block';
+      }
     });
 
+    // === 我的學習成長報表 ===
+    const numv = (v, d = '—') => (v === null || v === undefined) ? d : v;
+    function growthDelta(s) {
+      if (s.delta === null || s.delta === undefined) {
+        return s.post_only ? '<span style="color:#888">僅後測</span>' : '<span style="color:#888">—</span>';
+      }
+      const color = s.improved ? '#15803d' : (s.improved === false ? '#b91c1c' : '#888');
+      const txt = s.improved ? '進步' : (s.improved === false ? '退步' : '持平');
+      const arrow = s.delta > 0 ? '▲' : (s.delta < 0 ? '▼' : '◆');
+      return `<span style="color:${color};font-weight:800">${arrow} ${s.delta > 0 ? '+' : ''}${s.delta} ${txt}</span>`;
+    }
+    async function loadGrowthReport() {
+      const box = document.getElementById('growth-report');
+      const d = await ReportAPI.myReport();
+      if (!d) { box.innerHTML = '<p style="color:#888">尚無法載入報表。</p>'; return; }
+      const e = d.effectiveness || {};
+      const u = d.usage || {};
+      const p = d.problem_solving || {};
+      const q = d.questionnaire || {};
+
+      const cardCss = 'background:#faf9f5;border:1px solid #ececE4;border-radius:12px;padding:16px';
+      const metric = (label, val, unit, extra = '') =>
+        `<div style="${cardCss}"><div style="font-size:.78rem;color:#888;font-weight:700">${label}</div>
+         <div style="font-size:1.5rem;font-weight:900;margin-top:4px">${numv(val)}<small style="font-size:.85rem;color:#999;font-weight:600"> ${unit}</small></div>
+         ${extra ? `<div style="font-size:.74rem;color:#999;margin-top:2px">${extra}</div>` : ''}</div>`;
+
+      const effHtml = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:8px">
+        ${metric('平均評量分數', e.avg_score, '分', e.class_avg_score != null ? `班級平均 ${e.class_avg_score} 分` : '')}
+        ${metric('完成單元', e.completed_units, `/ ${e.total_units}`, '')}
+        ${metric('每次使用長度', u.avg_session_minutes, '分', '')}
+        ${metric('每週使用次數', u.avg_sessions_per_active_week, '次', u.avg_minutes_per_active_week != null ? `每週約 ${u.avg_minutes_per_active_week} 分` : '')}
+        ${metric('解題答對率', p.short_answer_accuracy, '%', p.class_short_answer_accuracy != null ? `班級 ${p.class_short_answer_accuracy}%` : '')}
+      </div>`;
+
+      let qHtml;
+      if (q.status !== 'ready') {
+        qHtml = '<p style="color:#888;font-size:.88rem">問卷成績尚未登錄，老師完成前/後測登錄後這裡會顯示你的六大構念變化。</p>';
+      } else {
+        qHtml = `<div style="overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:.88rem">
+          <thead><tr style="text-align:left;color:#888;font-size:.76rem">
+            <th style="padding:8px 10px">構念</th><th style="padding:8px 10px">前測</th><th style="padding:8px 10px">後測</th><th style="padding:8px 10px">變化</th></tr></thead>
+          <tbody>${q.scales.map(s => `<tr style="border-top:1px solid #eee">
+            <td style="padding:8px 10px;font-weight:700">${s.group ? s.group + '·' : ''}${s.name}${s.higher_is_better ? '' : ' <span style="color:#999;font-size:.7rem">(越低越好)</span>'}</td>
+            <td style="padding:8px 10px">${numv(s.pre)}</td>
+            <td style="padding:8px 10px">${numv(s.post)}</td>
+            <td style="padding:8px 10px">${growthDelta(s)}</td></tr>`).join('')}</tbody></table></div>`;
+      }
+
+      box.innerHTML = `
+        <div style="font-size:.82rem;font-weight:800;color:#666;margin-bottom:10px">學習成效與使用情形</div>
+        ${effHtml}
+        <div style="font-size:.82rem;font-weight:800;color:#666;margin:20px 0 10px">六大構念（前測 → 後測）</div>
+        ${qHtml}`;
+    }
+
     loadProfile();
+    loadGrowthReport();
   </script>
 </body>
 </html>

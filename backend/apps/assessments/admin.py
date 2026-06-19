@@ -99,7 +99,9 @@ class QuizAttemptAdmin(admin.ModelAdmin):
     @admin.display(description='得分', ordering='score')
     def score_badge(self, obj):
         color = '#38a169' if obj.is_passed else '#e53e3e'
-        return format_html('<span style="font-weight:700;color:{}">{:.0f} 分</span>', color, obj.score)
+        # 先把 obj.score 格式化成字串再傳給 format_html，避免 SafeString 套 {:.0f} 失敗
+        score_str = f'{obj.score:.0f}' if obj.score is not None else '—'
+        return format_html('<span style="font-weight:700;color:{}">{} 分</span>', color, score_str)
 
     @admin.action(description='🗑 刪除選取的作答記錄')
     def delete_selected_attempts(self, request, queryset):

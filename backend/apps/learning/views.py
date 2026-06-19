@@ -1,6 +1,9 @@
 from django.db.models import Exists, F, Max, OuterRef
-from rest_framework import generics, permissions, views, response
-from .models import LearningProgress, AdaptiveRecommendation, PerformanceRecord, AdaptiveLearningPath
+from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from rest_framework import generics, permissions, views, response, status
+from datetime import timedelta
+from .models import LearningProgress, AdaptiveRecommendation, PerformanceRecord, AdaptiveLearningPath, StudySession
 from .serializers import LearningProgressSerializer, RecommendationSerializer, PerformanceSerializer
 from apps.courses.models import Lesson
 from apps.assessments.models import QuizAttempt
@@ -62,6 +65,71 @@ class PerformanceListView(generics.ListAPIView):
 
     def get_queryset(self):
         return PerformanceRecord.objects.filter(student=self.request.user)
+
+
+class RecommendationClickView(views.APIView):
+    """學生點擊推薦卡時記錄 is_clicked / clicked_at（RQ-04 推薦接受度埋點）"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, pk):
+        rec = get_object_or_404(AdaptiveRecommendation, pk=pk, student=request.user)
+        if not rec.is_clicked:
+            rec.is_clicked = True
+            rec.clicked_at = timezone.now()
+            rec.save(update_fields=['is_clicked', 'clicked_at'])
+        return response.Response({'id': rec.id, 'is_clicked': rec.is_clicked})
+
+
+class ActivityPingView(views.APIView):
+    """記錄教材瀏覽次數與線上時數（RQ-05 投入度代理變數埋點）
+
+    body: { "lesson_id": <int>, "seconds": <int> }
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        lesson_id = request.data.get('lesson_id')
+        try:
+            seconds = int(request.data.get('seconds') or 0)
+        except (TypeError, ValueError):
+            seconds = 0
+        lesson = get_object_or_404(Lesson, pk=lesson_id)
+
+        progress, created = LearningProgress.objects.get_or_create(
+            student=request.user, lesson=lesson,
+        )
+        # 載入即計一次瀏覽（seconds=0）；之後 ping 累計時數
+        if seconds <= 0:
+            progress.visit_count = F('visit_count') + 1
+        else:
+            progress.time_spent = F('time_spent') + seconds // 60
+        if progress.status == 'not_started':
+            progress.status = 'in_progress'
+        progress.save()
+        return response.Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class SessionHeartbeatView(views.APIView):
+    """記錄使用時段（RQ-05 使用時間/次數）。前端登入後定期 POST。
+
+    距上次活動超過 GAP_MINUTES 視為新時段，否則延長現有時段。
+    僅對學生帳號計入，避免老師/管理員預覽汙染研究資料。
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        if getattr(user, 'role', None) != 'student':
+            return response.Response(status=status.HTTP_204_NO_CONTENT)
+        now = timezone.now()
+        gap = timedelta(minutes=StudySession.GAP_MINUTES)
+        latest = StudySession.objects.filter(student=user).order_by('-last_seen').first()
+        if latest and (now - latest.last_seen) <= gap:
+            latest.last_seen = now
+            latest.save(update_fields=['last_seen'])
+        else:
+            StudySession.objects.create(student=user, started_at=now, last_seen=now)
+        return response.Response(status=status.HTTP_204_NO_CONTENT)
 
 
 UNIT_TITLES = [

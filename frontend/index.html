@@ -8,6 +8,49 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/style.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <style>
+    /* === Embedded 模式：在 admin-shell iframe 內隱藏 navbar/sidebar === */
+    body.embedded .navbar,
+    body.embedded .sidebar { display: none !important; }
+    body.embedded .dashboard-layout { grid-template-columns: 1fr !important; }
+    body.embedded .main-content { padding: 24px 32px !important; }
+
+    /* === Admin debug 角章 (只在 admin_mode=1 顯示) === */
+    .admin-debug-banner {
+      background: linear-gradient(135deg, #FEF4E1 0%, #FDE9C0 100%);
+      border: 1px solid #F59E0B;
+      border-left: 4px solid #F59E0B;
+      border-radius: 12px;
+      padding: 12px 16px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 0.85rem;
+    }
+    .admin-debug-banner .badge {
+      background: #F59E0B; color: #fff;
+      padding: 3px 10px; border-radius: 999px;
+      font-weight: 800; font-size: 0.72rem;
+      letter-spacing: 0.05em; text-transform: uppercase;
+    }
+    .admin-debug-banner .text { color: #7a5200; font-weight: 600; }
+    .admin-debug-banner strong { color: #1F2330; }
+
+    .lv-stamp {
+      position: absolute; top: 8px; right: 8px;
+      background: #1F2330; color: #C5F135;
+      padding: 3px 9px; border-radius: 999px;
+      font-size: 0.68rem; font-weight: 800;
+      letter-spacing: 0.05em;
+      box-shadow: 0 2px 6px rgba(31,35,48,0.25);
+      z-index: 2;
+    }
+    .lv-stamp.l1 { background: #7C5BD9; color: #fff; }
+    .lv-stamp.l2 { background: #0EA5A4; color: #fff; }
+    .lv-stamp.l3 { background: #EC4899; color: #fff; }
+    .unit-card-wrap { position: relative; }
+  </style>
 </head>
 <body>
 
@@ -100,7 +143,15 @@
   <script src="js/api.js"></script>
   <script src="js/main.js"></script>
   <script>
-    if (!localStorage.getItem('access_token')) {
+    // === embedded / admin_mode 偵測 ===
+    const _urlParams = new URLSearchParams(window.location.search);
+    const IS_EMBEDDED = _urlParams.get('embedded') === '1';
+    const ADMIN_MODE  = _urlParams.get('admin_mode') === '1';
+    const PREVIEW_AS  = _urlParams.get('preview_as') || null;
+    if (IS_EMBEDDED) document.body.classList.add('embedded');
+
+    // embedded 模式由外層 shell 負責 auth；非 embedded 時才自己檢查
+    if (!IS_EMBEDDED && !localStorage.getItem('access_token')) {
       window.location.replace('/login.html');
     }
 
@@ -261,7 +312,25 @@
 
     async function loadDashboard() {
       const profile = await AuthAPI.getProfile();
-      const canSeeLevels = profile && profile.role !== 'student';
+
+      // 非 embedded 模式 + 不在 iframe 內 + admin 直接打開本頁 → 跳回 shell
+      // （在 iframe 內就不跳，避免 shell 套娃）
+      const _isInIframe = (window.self !== window.top);
+      if (!IS_EMBEDDED && !ADMIN_MODE && !_isInIframe && profile && profile.role === 'admin') {
+        window.location.replace('/admin-shell.html#path');
+        return;
+      }
+      // 在 iframe 內但沒帶 embedded → 自動補上重整（admin 用），確保進入 embedded 渲染
+      if (!IS_EMBEDDED && _isInIframe && profile && profile.role === 'admin') {
+        const u = new URL(window.location.href);
+        u.searchParams.set('embedded', '1');
+        u.searchParams.set('admin_mode', '1');
+        window.location.replace(u.toString());
+        return;
+      }
+
+      // admin_mode 強制顯示 Level（即使 API 回傳的 profile 是 student）
+      const canSeeLevels = ADMIN_MODE || (profile && profile.role !== 'student');
       if (profile) {
         document.getElementById('user-greeting').textContent = `你好，${profile.username}`;
         document.getElementById('user-name').textContent = `歡迎回來，${profile.username}！今天也繼續學習吧。`;
@@ -272,6 +341,18 @@
         if (profile.role === 'admin') {
           document.getElementById('admin-dashboard-link').style.display = '';
         }
+      }
+
+      // === Admin debug 提示橫幅 ===
+      if (ADMIN_MODE) {
+        const overview = document.getElementById('overview');
+        const banner = document.createElement('div');
+        banner.className = 'admin-debug-banner';
+        banner.innerHTML = `
+          <span class="badge">👁 Admin Preview</span>
+          <span class="text">目前以 <strong>${profile ? profile.username : '—'}</strong> 學生身分預覽，含 Level 等級資訊（學生本人看不到此區塊與 Level 角章）</span>
+        `;
+        overview.insertBefore(banner, overview.firstChild);
       }
 
       // 學習路徑（8 個單元）
@@ -346,10 +427,14 @@
                 <div class="card-title" style="margin-bottom:4px">${r.lesson_title}</div>
                 <div class="card-desc">${canSeeLevels ? r.reason : '根據最近一次評量，建議前往這個單元繼續學習。'}</div>
               </div>
-              <a href="lesson.html?lesson_id=${r.lesson_id}" class="btn btn-lime" style="flex-shrink:0">前往學習 →</a>
+              <a href="lesson.html?lesson_id=${r.lesson_id}" data-rec-id="${r.id}" class="btn btn-lime rec-link" style="flex-shrink:0">前往學習 →</a>
             </div>
           </div>
         `).join('');
+        // 記錄推薦卡點擊（RQ-04 推薦接受度埋點）
+        recList.querySelectorAll('.rec-link').forEach(a => {
+          a.addEventListener('click', () => LearningAPI.clickRecommendation(a.dataset.recId));
+        });
       }
 
       renderPerformance(units, canSeeLevels);

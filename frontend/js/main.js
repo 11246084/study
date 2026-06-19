@@ -41,4 +41,50 @@ function initNavbar() {
   }
 }
 
-document.addEventListener('DOMContentLoaded', initNavbar);
+// ===== 全站 footer：整個系統累計登入次數 =====
+async function renderSystemFooter() {
+  // 登入 / 註冊頁不顯示 footer
+  if (/\/(login|register)\.html$/.test(window.location.pathname)) return;
+  // iframe 內嵌頁（admin-shell 載入）不重複顯示，footer 由外層 shell 呈現
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('embedded') === '1') return;
+  if (document.getElementById('system-footer')) return;
+
+  const footer = document.createElement('footer');
+  footer.id = 'system-footer';
+  footer.style.cssText =
+    'margin-top:48px;padding:18px 16px;border-top:1px solid var(--color-border,#e4e1da);' +
+    'text-align:center;color:#8a8a8a;font-size:.8rem;line-height:1.6;';
+  footer.innerHTML =
+    '<div>AdaptLearn · 程式設計適性學習輔助系統</div>' +
+    '<div>系統累計登入 <b id="sf-logins" style="color:#555">—</b> 次</div>';
+  document.body.appendChild(footer);
+
+  try {
+    const res = await fetch('/api/auth/stats/');
+    if (res.ok) {
+      const data = await res.json();
+      const el = document.getElementById('sf-logins');
+      if (el) el.textContent = Number(data.total_logins).toLocaleString('zh-TW');
+    }
+  } catch (e) { /* 靜默失敗，footer 仍顯示 */ }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  initNavbar();
+  renderSystemFooter();
+});
+
+// ===== 使用時段心跳（RQ-05 使用時間/次數）=====
+// 登入後每 2 分鐘送一次心跳，後端據此切分「使用時段」。
+// 跳過管理端預覽 / iframe 內嵌情境，避免汙染學生研究資料。
+(function startHeartbeat() {
+  const params = new URLSearchParams(window.location.search);
+  const isAdminContext = params.has('preview_as') || params.get('embedded') === '1' || params.get('admin_mode') === '1';
+  if (isAdminContext || !isLoggedIn() || typeof LearningAPI === 'undefined') return;
+
+  const ping = () => { if (!document.hidden) LearningAPI.heartbeat(); };
+  ping(); // 進站立即記一次
+  setInterval(ping, 120000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) ping(); });
+})();

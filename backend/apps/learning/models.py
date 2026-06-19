@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone
 from apps.users.models import User
 from apps.courses.models import Course, Lesson
 
@@ -9,10 +10,11 @@ class LearningProgress(models.Model):
         ('in_progress', '學習中'),
         ('completed', '已完成'),
     ]
-    student = models.ForeignKey(User, on_delete=models.CASCADE, related_name='progress', verbose_name='學生')
-    lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name='progress', verbose_name='單元')
+    student = models.ForeignKey(User, on_delete=models.PROTECT, related_name='progress', verbose_name='學生')
+    lesson = models.ForeignKey(Lesson, on_delete=models.PROTECT, related_name='progress', verbose_name='單元')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='not_started', verbose_name='狀態')
     time_spent = models.PositiveIntegerField(default=0, verbose_name='花費時間(分鐘)')
+    visit_count = models.PositiveIntegerField(default=0, verbose_name='瀏覽次數')
     last_accessed = models.DateTimeField(auto_now=True)
     completed_at = models.DateTimeField(null=True, blank=True)
 
@@ -26,11 +28,13 @@ class LearningProgress(models.Model):
 
 
 class AdaptiveRecommendation(models.Model):
-    student = models.ForeignKey(User, on_delete=models.CASCADE, related_name='recommendations', verbose_name='學生')
-    recommended_lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, verbose_name='推薦單元')
+    student = models.ForeignKey(User, on_delete=models.PROTECT, related_name='recommendations', verbose_name='學生')
+    recommended_lesson = models.ForeignKey(Lesson, on_delete=models.PROTECT, verbose_name='推薦單元')
     reason = models.CharField(max_length=500, verbose_name='推薦原因')
     created_at = models.DateTimeField(auto_now_add=True)
     is_dismissed = models.BooleanField(default=False, verbose_name='是否忽略')
+    is_clicked = models.BooleanField(default=False, verbose_name='是否點擊')
+    clicked_at = models.DateTimeField(null=True, blank=True, verbose_name='點擊時間')
 
     class Meta:
         verbose_name = '適性推薦'
@@ -53,7 +57,7 @@ class AdaptiveLearningPath(models.Model):
         (2, 'Level 2 標準版'),
         (3, 'Level 3 進階版'),
     ]
-    student = models.ForeignKey(User, on_delete=models.CASCADE, related_name='adaptive_path', verbose_name='學生')
+    student = models.ForeignKey(User, on_delete=models.PROTECT, related_name='adaptive_path', verbose_name='學生')
     unit_number = models.PositiveIntegerField(verbose_name='單元編號')
     current_level = models.IntegerField(choices=LEVEL_CHOICES, default=2, verbose_name='當前等級')
     last_score = models.FloatField(default=0.0, verbose_name='最近評量分數')
@@ -78,14 +82,41 @@ class AdaptiveLearningPath(models.Model):
         return current_level
 
 
+class StudySession(models.Model):
+    """一段連續使用系統的時段（RQ-05 使用時間/次數）。
+
+    前端定期送 heartbeat；若距上次心跳超過 GAP_MINUTES 視為新的一段，
+    否則延長現有時段的 last_seen。用於計算每週使用次數、每週時長、每次使用長度。
+    """
+    GAP_MINUTES = 30
+
+    student = models.ForeignKey(User, on_delete=models.PROTECT, related_name='study_sessions', verbose_name='學生')
+    started_at = models.DateTimeField(default=timezone.now, verbose_name='開始時間')
+    last_seen = models.DateTimeField(default=timezone.now, verbose_name='最後活動')
+
+    class Meta:
+        verbose_name = '使用時段'
+        verbose_name_plural = '使用時段'
+        ordering = ['-started_at']
+        indexes = [models.Index(fields=['student', 'started_at'])]
+
+    @property
+    def duration_minutes(self):
+        delta = (self.last_seen - self.started_at).total_seconds() / 60
+        return max(0, round(delta, 1))
+
+    def __str__(self):
+        return f'{self.student.username} {self.started_at:%Y-%m-%d %H:%M} ({self.duration_minutes}m)'
+
+
 class PerformanceRecord(models.Model):
     PROFICIENCY_CHOICES = [
         ('low', '待加強'),
         ('medium', '普通'),
         ('high', '精熟'),
     ]
-    student = models.ForeignKey(User, on_delete=models.CASCADE, related_name='performance', verbose_name='學生')
-    course = models.ForeignKey(Course, on_delete=models.CASCADE, verbose_name='課程')
+    student = models.ForeignKey(User, on_delete=models.PROTECT, related_name='performance', verbose_name='學生')
+    course = models.ForeignKey(Course, on_delete=models.PROTECT, verbose_name='課程')
     quiz_score_avg = models.FloatField(default=0.0, verbose_name='平均評量分數')
     proficiency = models.CharField(max_length=10, choices=PROFICIENCY_CHOICES, default='medium', verbose_name='精熟度')
     recorded_at = models.DateTimeField(auto_now=True)

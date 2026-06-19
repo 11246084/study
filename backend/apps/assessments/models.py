@@ -57,8 +57,8 @@ class Choice(models.Model):
 
 
 class QuizAttempt(models.Model):
-    student = models.ForeignKey(User, on_delete=models.CASCADE, related_name='attempts', verbose_name='學生')
-    quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE, related_name='attempts', verbose_name='評量')
+    student = models.ForeignKey(User, on_delete=models.PROTECT, related_name='attempts', verbose_name='學生')
+    quiz = models.ForeignKey(Quiz, on_delete=models.PROTECT, related_name='attempts', verbose_name='評量')
     score = models.FloatField(default=0.0, verbose_name='得分')
     is_passed = models.BooleanField(default=False, verbose_name='是否通過')
     started_at = models.DateTimeField(auto_now_add=True)
@@ -74,7 +74,7 @@ class QuizAttempt(models.Model):
 
 class Answer(models.Model):
     attempt = models.ForeignKey(QuizAttempt, on_delete=models.CASCADE, related_name='answers', verbose_name='作答記錄')
-    question = models.ForeignKey(Question, on_delete=models.CASCADE, verbose_name='題目')
+    question = models.ForeignKey(Question, on_delete=models.PROTECT, verbose_name='題目')
     student_answer = models.TextField(verbose_name='學生作答')
     is_correct = models.BooleanField(default=False, verbose_name='是否正確')
     points_earned = models.FloatField(default=0.0, verbose_name='獲得分數')

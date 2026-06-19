@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <title>管理中心 — AdaptLearn</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <style>
+    html, body { height: 100%; overflow: hidden; }
+    body { background: var(--color-black); }
+
+    /* === Shell layout === */
+    .shell {
+      display: grid;
+      grid-template-columns: 250px 1fr;
+      height: 100vh;
+    }
+
+    /* === Sidebar === */
+    .shell-sidebar {
+      background: var(--color-black);
+      color: #fff;
+      padding: 22px 18px;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      border-right: 1px solid #1f1f1f;
+    }
+    .shell-brand {
+      display: flex; align-items: center; gap: 10px;
+      padding: 0 6px 18px;
+      border-bottom: 1px solid #222;
+      margin-bottom: 18px;
+    }
+    .shell-brand .brand-mark {
+      background: var(--color-lime); color: var(--color-black);
+      padding: 4px 9px; border-radius: 7px;
+      font-weight: 900; font-size: 0.85rem; letter-spacing: 0.5px;
+    }
+    .shell-brand .brand-name {
+      font-weight: 800; font-size: 1.05rem; color: #fff;
+      letter-spacing: -0.2px;
+    }
+    .shell-brand .brand-sub {
+      font-size: 0.7rem; color: #777; font-weight: 600;
+      margin-left: 4px;
+    }
+
+    .shell-section-label {
+      font-size: 0.66rem; color: #666; font-weight: 800;
+      text-transform: uppercase; letter-spacing: 0.12em;
+      padding: 6px 10px; margin-top: 4px;
+    }
+
+    .shell-nav { list-style: none; padding: 0; margin: 0 0 14px; }
+    .shell-nav li { margin-bottom: 4px; }
+    .shell-nav button {
+      width: 100%; text-align: left; cursor: pointer;
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 12px; border-radius: 9px;
+      font-size: 0.88rem; font-weight: 600;
+      color: #bbb; background: transparent; border: none;
+      font-family: inherit;
+      transition: all 0.15s;
+    }
+    .shell-nav button:hover { background: rgba(255,255,255,0.05); color: #fff; }
+    .shell-nav button.active {
+      background: rgba(197,241,53,0.12);
+      color: var(--color-lime);
+      font-weight: 800;
+    }
+    .shell-nav button .nav-icon {
+      width: 22px; text-align: center;
+      font-size: 1rem;
+    }
+    .shell-nav button .nav-arrow {
+      margin-left: auto; opacity: 0; transition: all 0.15s;
+      font-size: 0.7rem;
+    }
+    .shell-nav button.active .nav-arrow { opacity: 0.6; }
+
+    .data-mode .shell-section-label.primary,
+    .data-mode #shell-nav,
+    .analytics-mode .shell-section-label.primary,
+    .analytics-mode #shell-nav { display: none; }
+
+    .data-panel,
+    .analytics-panel {
+      display: none;
+      min-height: 0;
+      margin-bottom: 14px;
+    }
+    .data-mode .data-panel { display: block; }
+    .analytics-mode .analytics-panel { display: block; }
+    .data-panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin: 2px 4px 14px;
+    }
+    .data-panel-title {
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 900;
+    }
+    .data-back {
+      border: 1px solid #303030;
+      background: transparent;
+      color: #aaa;
+      border-radius: 999px;
+      padding: 6px 10px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.72rem;
+      font-weight: 800;
+    }
+    .data-back:hover {
+      background: #fff;
+      color: var(--color-black);
+      border-color: #fff;
+    }
+    .data-panel-copy {
+      color: #858585;
+      font-size: 0.78rem;
+      line-height: 1.55;
+      margin: 0 4px 16px;
+    }
+    .data-models {
+      display: grid;
+      gap: 10px;
+      max-height: calc(100vh - 310px);
+      overflow-y: auto;
+      padding-right: 4px;
+      margin-right: -4px;
+    }
+    .data-group {
+      border: 1px solid #222;
+      border-radius: 14px;
+      overflow: hidden;
+      background: rgba(255,255,255,0.015);
+    }
+    .data-group-toggle {
+      width: 100%;
+      border: 0;
+      background: transparent;
+      color: #d7d7d7;
+      padding: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: inherit;
+      cursor: pointer;
+      text-align: left;
+    }
+    .data-group-toggle:hover {
+      background: rgba(255,255,255,0.04);
+      color: #fff;
+    }
+    .data-group-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 9px;
+      background: #202020;
+      color: #fff;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      font-size: 0.76rem;
+    }
+    .data-group-text {
+      flex: 1;
+      min-width: 0;
+    }
+    .data-group-title {
+      display: block;
+      font-size: 0.82rem;
+      font-weight: 900;
+      line-height: 1.2;
+    }
+    .data-group-sub {
+      display: block;
+      color: #777;
+      font-size: 0.66rem;
+      margin-top: 2px;
+    }
+    .data-group-arrow {
+      color: #777;
+      transition: transform 0.16s;
+      font-size: 0.8rem;
+    }
+    .data-group.open .data-group-arrow {
+      transform: rotate(90deg);
+    }
+    .data-group-items {
+      display: none;
+      padding: 0 8px 8px;
+    }
+    .data-group.open .data-group-items {
+      display: grid;
+      gap: 4px;
+    }
+    .data-model-btn {
+      width: 100%;
+      display: grid;
+      grid-template-columns: 30px 1fr auto;
+      align-items: center;
+      gap: 10px;
+      border: 0;
+      background: transparent;
+      color: #bdbdbd;
+      border-radius: 10px;
+      padding: 9px 8px;
+      font-family: inherit;
+      text-align: left;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .data-model-btn:hover {
+      background: rgba(255,255,255,0.055);
+      color: #fff;
+    }
+    .data-model-btn.active {
+      background: rgba(197,241,53,0.13);
+      color: var(--color-lime);
+    }
+    .data-model-icon {
+      width: 30px;
+      height: 30px;
+      border-radius: 9px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: #202020;
+      color: #fff;
+      font-weight: 900;
+      font-size: 0.78rem;
+    }
+    .data-model-btn.active .data-model-icon {
+      background: var(--color-lime);
+      color: var(--color-black);
+    }
+    .data-model-title {
+      display: block;
+      font-size: 0.84rem;
+      font-weight: 850;
+      line-height: 1.2;
+    }
+    .data-model-sub {
+      display: block;
+      color: #777;
+      font-size: 0.68rem;
+      margin-top: 2px;
+    }
+    .data-model-arrow {
+      color: #5d5d5d;
+      font-size: 0.8rem;
+    }
+
+    /* === 帳號區塊 === */
+    .shell-account {
+      margin-top: auto;
+      padding-top: 18px;
+    }
+    .account-card {
+      border: 1px solid #2a2a2a;
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 10px;
+      background: rgba(255,255,255,0.02);
+    }
+    .account-card .label {
+      font-size: 0.66rem; color: #777; font-weight: 800;
+      text-transform: uppercase; letter-spacing: 0.08em;
+      margin-bottom: 6px;
+    }
+    .account-card .name { font-size: 0.92rem; font-weight: 800; color: #fff; }
+    .account-card .role { font-size: 0.76rem; color: var(--color-lime); margin-top: 2px; font-weight: 700; }
+    .account-card .email {
+      font-size: 0.7rem; color: #888; margin-top: 6px;
+      word-break: break-all; line-height: 1.4;
+    }
+    .shell-account .btn-row {
+      display: flex; gap: 6px;
+    }
+    .shell-account a, .shell-account button {
+      flex: 1;
+      display: flex; align-items: center; justify-content: center; gap: 4px;
+      padding: 9px 8px;
+      border: 1px solid #333;
+      border-radius: 9px;
+      color: #ccc; background: transparent;
+      font-size: 0.76rem; font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.15s;
+      text-decoration: none;
+    }
+    .shell-account a:hover, .shell-account button:hover {
+      background: #fff; color: var(--color-black);
+      border-color: #fff;
+    }
+
+    /* === Main iframe area === */
+    .shell-main {
+      background: #FBFAF6;
+      position: relative;
+      overflow: hidden;
+    }
+    .shell-iframe {
+      width: 100%; height: 100%;
+      border: 0;
+      display: block;
+    }
+    .shell-loader {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: #FBFAF6;
+      color: #999;
+      font-size: 0.9rem;
+      gap: 10px;
+      transition: opacity 0.2s;
+      pointer-events: none;
+      opacity: 0;
+    }
+    .shell-loader.show { opacity: 1; pointer-events: auto; }
+    .shell-loader .spinner {
+      width: 18px; height: 18px;
+      border: 2.5px solid #ddd;
+      border-top-color: var(--color-black);
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* === 403 / 載入狀態 === */
+    .shell-blocked {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      background: #FBFAF6; color: #555; text-align: center;
+      padding: 40px;
+    }
+    .shell-blocked .icon { font-size: 3rem; opacity: 0.4; margin-bottom: 16px; }
+    .shell-blocked .title { font-weight: 800; font-size: 1.1rem; margin-bottom: 6px; color: #1F2330; }
+    .shell-blocked .desc { font-size: 0.88rem; color: #888; max-width: 400px; line-height: 1.6; }
+    .shell-blocked a {
+      margin-top: 18px;
+      background: #1F2330; color: #fff;
+      padding: 10px 22px; border-radius: 999px;
+      text-decoration: none; font-weight: 700; font-size: 0.85rem;
+    }
+
+    @media (max-width: 768px) {
+      .shell { grid-template-columns: 1fr; }
+      .shell-sidebar { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <!-- Sidebar -->
+    <aside class="shell-sidebar">
+      <div class="shell-brand">
+        <span class="brand-mark">AL</span>
+        <div>
+          <div class="brand-name">AdaptLearn</div>
+          <div class="brand-sub">管理中心</div>
+        </div>
+      </div>
+
+      <div class="shell-section-label primary">檢視模式</div>
+      <ul class="shell-nav" id="shell-nav">
+        <li>
+          <button data-tab="path">
+            <span class="nav-icon">📊</span>
+            <span>學習路徑</span>
+            <span class="nav-arrow">▶</span>
+          </button>
+        </li>
+        <li>
+          <button data-tab="courses">
+            <span class="nav-icon">📚</span>
+            <span>課程列表</span>
+            <span class="nav-arrow">▶</span>
+          </button>
+        </li>
+        <li>
+          <button data-tab="analytics" class="active">
+            <span class="nav-icon">🧭</span>
+            <span>圖表管理</span>
+            <span class="nav-arrow">▶</span>
+          </button>
+        </li>
+        <li>
+          <button data-tab="data">
+            <span class="nav-icon">🛠</span>
+            <span>資料管理</span>
+            <span class="nav-arrow">▶</span>
+          </button>
+        </li>
+      </ul>
+
+      <section class="data-panel" id="data-panel">
+        <div class="data-panel-head">
+          <div class="data-panel-title">資料管理</div>
+          <button class="data-back" id="data-back-btn" type="button">返回</button>
+        </div>
+        <div class="data-models" id="data-models"></div>
+      </section>
+
+      <section class="analytics-panel" id="analytics-panel">
+        <div class="data-panel-head">
+          <div class="data-panel-title">圖表模組</div>
+          <button class="data-back" id="analytics-back-btn" type="button">返回</button>
+        </div>
+        <div class="data-models" id="analytics-modules"></div>
+      </section>
+
+      <div class="shell-account">
+        <div class="account-card">
+          <div class="label">目前登入</div>
+          <div class="name" id="account-name">-</div>
+          <div class="role" id="account-role">-</div>
+          <div class="email" id="account-email">-</div>
+        </div>
+        <div class="btn-row">
+          <button id="edit-profile-btn" type="button">編輯</button>
+          <button onclick="AuthAPI.logout()">登出</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="shell-main">
+      <iframe id="shell-iframe" class="shell-iframe" src="/admin-dashboard.html?embedded=1" title="管理內容"></iframe>
+      <div class="shell-loader" id="shell-loader">
+        <div class="spinner"></div>
+        <span>載入中...</span>
+      </div>
+      <div class="shell-blocked" id="shell-blocked" style="display:none">
+        <div class="icon">🔒</div>
+        <div class="title">此頁面僅限管理員使用</div>
+        <div class="desc">你目前不是管理員身分，無法存取管理中心。請以 admin 帳號重新登入。</div>
+        <a href="login.html">前往登入</a>
+      </div>
+    </main>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script>
+    if (!localStorage.getItem('access_token')) {
+      window.location.replace('/login.html');
+    }
+
+    // === Tab 設定 ===
+    const TABS = {
+      path: {
+        label: '學習路徑',
+        url: '/index.html?embedded=1&admin_mode=1',
+      },
+      courses: {
+        label: '課程列表',
+        url: '/courses.html?embedded=1',
+      },
+      analytics: {
+        label: '圖表管理',
+        url: '/admin-dashboard.html?embedded=1',
+      },
+      data: {
+        label: '資料管理',
+        url: '/admin-data.html',
+      },
+      // 隱藏的 sub-route（不在 sidebar 顯示，從帳號區「編輯」按鈕進入）
+      profile: {
+        label: '個人資料',
+        url: '/profile.html?embedded=1',
+        hidden: true,
+      },
+    };
+
+    const DEFAULT_TAB = 'analytics';
+    let activeDataModel = 'attempts';
+    let openDataGroup = 'assessments';
+
+    // 圖表管理的模組（左側欄一次選一個，iframe 只顯示該模組）
+    let activeAnalyticsModule = 'behavior';
+    const ANALYTICS_MODULES = [
+      { id: 'behavior', icon: 'A', title: '學習行為', sub: '走過八個單元' },
+      { id: 'concept', icon: 'B', title: '概念與評量', sub: '卡點 / 重做 / 解題' },
+      { id: 'intervention', icon: 'C', title: '系統介入與使用', sub: '推薦 / 投入 / 使用時間' },
+      { id: 'psych', icon: 'D', title: '子群與心理變項', sub: '性別 / 六大構念前後測' },
+      { id: 'individual', icon: 'E', title: '個人層級', sub: '單一學生個案' },
+    ];
+
+    const DATA_GROUPS = [
+      {
+        id: 'accounts',
+        icon: 'U',
+        title: '帳號',
+        sub: '身份與權限',
+        models: [
+          { id: 'users', icon: 'U', title: '使用者', sub: '學生、老師、管理員', url: '/admin/users/user/' },
+        ],
+      },
+      {
+        id: 'courses',
+        icon: 'C',
+        title: '課程',
+        sub: '課程、單元、選課',
+        models: [
+          { id: 'courses', icon: 'C', title: '課程', sub: 'Level 與課程資料', url: '/admin/courses/course/' },
+          { id: 'lessons', icon: 'L', title: '單元', sub: '教材內容與順序', url: '/admin/courses/lesson/' },
+          { id: 'enrollments', icon: 'E', title: '選課紀錄', sub: '學生與課程關聯', url: '/admin/courses/enrollment/' },
+        ],
+      },
+      {
+        id: 'assessments',
+        icon: 'Q',
+        title: '評量',
+        sub: '測驗、題目、作答',
+        models: [
+          { id: 'quizzes', icon: 'Q', title: '評量', sub: '測驗與題目', url: '/admin/assessments/quiz/' },
+          { id: 'questions', icon: '?', title: '題目', sub: '題型、答案、分數', url: '/admin/assessments/question/' },
+          { id: 'attempts', icon: 'A', title: '作答紀錄', sub: '分數與答案', url: '/admin/assessments/quizattempt/' },
+        ],
+      },
+      {
+        id: 'learning',
+        icon: 'P',
+        title: '學習',
+        sub: '路徑、推薦、進度',
+        models: [
+          { id: 'adaptive', icon: 'P', title: '適性路徑', sub: 'Unit 與 Level', url: '/admin/learning/adaptivelearningpath/' },
+          { id: 'recommendations', icon: 'R', title: '推薦紀錄', sub: '補強與進階', url: '/admin/learning/adaptiverecommendation/' },
+          { id: 'progress', icon: 'G', title: '學習進度', sub: '單元完成狀態', url: '/admin/learning/learningprogress/' },
+          { id: 'performance', icon: 'F', title: '學習表現', sub: '課程表現紀錄', url: '/admin/learning/performancerecord/' },
+        ],
+      },
+      {
+        id: 'surveys',
+        icon: 'S',
+        title: '問卷',
+        sub: '構念與前後測成績',
+        models: [
+          { id: 'survey_scores', icon: '#', title: '問卷成績', sub: '前後測分數登錄 / 匯入', url: '/admin/surveys/surveyscore/' },
+          { id: 'survey_scales', icon: 'S', title: '問卷構念', sub: '六大構念定義', url: '/admin/surveys/surveyscale/' },
+        ],
+      },
+    ];
+    const DATA_MODELS = DATA_GROUPS.flatMap(group => group.models.map(model => ({ ...model, groupId: group.id })));
+
+    const iframe = document.getElementById('shell-iframe');
+    const loader = document.getElementById('shell-loader');
+    const blocked = document.getElementById('shell-blocked');
+    const dataModels = document.getElementById('data-models');
+
+    function getActiveTabFromHash() {
+      const h = (window.location.hash || '').replace(/^#/, '');
+      return TABS[h] ? h : DEFAULT_TAB;
+    }
+
+    function getDataUrl(modelId = activeDataModel) {
+      return `/admin-data.html?model=${encodeURIComponent(modelId)}`;
+    }
+
+    function getAnalyticsUrl(mod = activeAnalyticsModule) {
+      return `/admin-dashboard.html?embedded=1&section=${encodeURIComponent(mod)}`;
+    }
+
+    function switchTab(tab, pushHash = true) {
+      const conf = TABS[tab] || TABS[DEFAULT_TAB];
+      if (!conf) return;
+      document.body.classList.toggle('data-mode', tab === 'data');
+      document.body.classList.toggle('analytics-mode', tab === 'analytics');
+
+      // active 狀態
+      document.querySelectorAll('#shell-nav button').forEach(b => {
+        b.classList.toggle('active', b.dataset.tab === tab);
+      });
+
+      // 更新 hash（不觸發 hashchange 迴圈）
+      if (pushHash && window.location.hash !== `#${tab}`) {
+        history.replaceState(null, '', `#${tab}`);
+      }
+
+      // 切 iframe src
+      if (!iframe) return;
+      loader.classList.add('show');
+      if (tab === 'data') iframe.src = getDataUrl();
+      else if (tab === 'analytics') iframe.src = getAnalyticsUrl();
+      else iframe.src = conf.url;
+      renderDataModels();
+      renderAnalyticsModules();
+      document.title = `${conf.label} - AdaptLearn 管理中心`;
+    }
+
+    function renderAnalyticsModules() {
+      const wrap = document.getElementById('analytics-modules');
+      if (!wrap) return;
+      wrap.innerHTML = ANALYTICS_MODULES.map(m => `
+        <button class="data-model-btn ${m.id === activeAnalyticsModule ? 'active' : ''}" type="button" data-amodule="${m.id}">
+          <span class="data-model-icon">${m.icon}</span>
+          <span>
+            <span class="data-model-title">${m.title}</span>
+            <span class="data-model-sub">${m.sub}</span>
+          </span>
+          <span class="data-model-arrow">›</span>
+        </button>`).join('');
+      wrap.querySelectorAll('[data-amodule]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          activeAnalyticsModule = btn.dataset.amodule;
+          if (iframe.src.includes('/admin-dashboard.html')) {
+            // 已在儀表板 → 直接通知切換模組（不重載）
+            iframe.contentWindow.postMessage(
+              { type: 'adaptlearn:analytics-section', section: activeAnalyticsModule },
+              window.location.origin);
+          } else {
+            loader.classList.add('show');
+            iframe.src = getAnalyticsUrl();
+          }
+          renderAnalyticsModules();
+        });
+      });
+    }
+
+    function renderDataModels() {
+      if (!dataModels) return;
+      dataModels.innerHTML = DATA_GROUPS.map(group => {
+        const isOpen = openDataGroup === group.id;
+        return `
+          <section class="data-group ${isOpen ? 'open' : ''}">
+            <button class="data-group-toggle" type="button" data-group="${group.id}">
+              <span class="data-group-icon">${group.icon}</span>
+              <span class="data-group-text">
+                <span class="data-group-title">${group.title}</span>
+                <span class="data-group-sub">${group.sub}</span>
+              </span>
+              <span class="data-group-arrow">›</span>
+            </button>
+            <div class="data-group-items">
+              ${group.models.map(model => `
+                <button class="data-model-btn ${model.id === activeDataModel ? 'active' : ''}" type="button" data-model="${model.id}">
+                  <span class="data-model-icon">${model.icon}</span>
+                  <span>
+                    <span class="data-model-title">${model.title}</span>
+                    <span class="data-model-sub">${model.sub}</span>
+                  </span>
+                  <span class="data-model-arrow">›</span>
+                </button>
+              `).join('')}
+            </div>
+          </section>
+        `;
+      }).join('');
+
+      dataModels.querySelectorAll('[data-group]').forEach(button => {
+        button.addEventListener('click', () => {
+          openDataGroup = button.dataset.group;
+          renderDataModels();
+        });
+      });
+
+    dataModels.querySelectorAll('[data-model]').forEach(button => {
+        button.addEventListener('click', () => {
+          activeDataModel = button.dataset.model;
+          const selected = DATA_MODELS.find(item => item.id === activeDataModel);
+          if (selected) openDataGroup = selected.groupId;
+          loader.classList.add('show');
+          if (iframe.src.includes('/admin-data.html')) {
+            iframe.contentWindow.postMessage({ type: 'adaptlearn:data-model', model: activeDataModel }, window.location.origin);
+            window.setTimeout(() => loader.classList.remove('show'), 2500);
+          } else {
+            iframe.src = getDataUrl(activeDataModel);
+          }
+          renderDataModels();
+        });
+      });
+    }
+
+    iframe.addEventListener('load', () => {
+      loader.classList.remove('show');
+    });
+
+    window.addEventListener('message', event => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.type === 'adaptlearn:data-ready') {
+        loader.classList.remove('show');
+      }
+    });
+
+    // sidebar 點擊
+    document.querySelectorAll('#shell-nav button').forEach(btn => {
+      btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+    });
+
+    // 「編輯」按鈕 → 切到 profile sub-route
+    document.getElementById('edit-profile-btn').addEventListener('click', () => switchTab('profile'));
+    document.getElementById('data-back-btn').addEventListener('click', () => switchTab('analytics'));
+    // 圖表模組「返回」→ 收合模組清單、顯示主選單（不更動 iframe）
+    document.getElementById('analytics-back-btn').addEventListener('click', () => {
+      document.body.classList.remove('analytics-mode');
+    });
+
+    // hash 變化（前進/後退）
+    window.addEventListener('hashchange', () => switchTab(getActiveTabFromHash(), false));
+
+    // === Profile 載入 + 權限檢查 ===
+    async function init() {
+      let profile = null;
+      try {
+        profile = await AuthAPI.getProfile();
+      } catch (e) {
+        profile = null;
+      }
+      if (!profile) {
+        switchTab(getActiveTabFromHash(), false);
+        return;
+      }
+
+      const isAdmin = profile.role === 'admin' || profile.is_superuser || profile.is_staff;
+      if (!isAdmin) {
+        blocked.style.display = 'flex';
+        return;
+      }
+
+      // 填帳號區
+      const roleMap = { student: '學生', teacher: '老師', admin: '管理員' };
+      document.getElementById('account-name').textContent = profile.username || '-';
+      document.getElementById('account-role').textContent = roleMap[profile.role] || profile.role;
+      document.getElementById('account-email').textContent = profile.email || '未設定 Email';
+
+      // 載入預設 tab
+      switchTab(getActiveTabFromHash(), false);
+    }
+
+    init();
+  </script>
+</body>
+</html>

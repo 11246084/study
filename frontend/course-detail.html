@@ -7,6 +7,12 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/style.css" />
   <style>
+    /* === Embedded 模式 (在 admin-shell iframe 內) === */
+    body.embedded .navbar,
+    body.embedded .footer,
+    body.embedded #enroll-btn { display: none !important; }
+    body.embedded .section { padding-top: 24px !important; }
+
     .lesson-list { display: flex; flex-direction: column; gap: 12px; }
     .lesson-item {
       display: flex; align-items: center; gap: 16px;
@@ -85,10 +91,31 @@
   <script>
     const urlParams = new URLSearchParams(window.location.search);
     const courseId = urlParams.get('id');
+    const IS_EMBEDDED = urlParams.get('embedded') === '1';
+    const EMBEDDED_SFX = IS_EMBEDDED ? '&embedded=1' : '';
+    if (IS_EMBEDDED) document.body.classList.add('embedded');
+
     const diffMap = { beginner: '初級', intermediate: '中級', advanced: '進階' };
     const typeMap = { video: '影片', text: '閱讀', exercise: '練習題' };
 
-    if (!courseId) window.location.href = 'courses.html';
+    if (!courseId) {
+      window.location.href = IS_EMBEDDED ? 'courses.html?embedded=1' : 'courses.html';
+    }
+
+    // 非 embedded 且 admin → 跳 shell；在 iframe 內就不跳（避免套娃），補 embedded 重整
+    (async () => {
+      if (IS_EMBEDDED) return;
+      const profile = await AuthAPI.getProfile();
+      if (profile && profile.role === 'admin') {
+        if (window.self !== window.top) {
+          const u = new URL(window.location.href);
+          u.searchParams.set('embedded', '1');
+          window.location.replace(u.toString());
+        } else {
+          window.location.replace('/admin-shell.html#courses');
+        }
+      }
+    })();
 
     async function loadCourse() {
       const course = await CoursesAPI.detail(courseId);
@@ -138,12 +165,12 @@
     }
 
     function goToLesson(lessonId) {
-      if (!localStorage.getItem('access_token')) {
+      if (!IS_EMBEDDED && !localStorage.getItem('access_token')) {
         showToast('請先登入再學習', 'error');
         setTimeout(() => window.location.href = 'login.html', 1200);
         return;
       }
-      window.location.href = `lesson.html?lesson_id=${lessonId}`;
+      window.location.href = `lesson.html?lesson_id=${lessonId}${EMBEDDED_SFX}`;
     }
 
     document.getElementById('enroll-btn')?.addEventListener('click', async () => {

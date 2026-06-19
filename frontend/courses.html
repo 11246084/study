@@ -6,14 +6,26 @@
   <title>課程列表 — AdaptLearn</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/style.css" />
+  <style>
+    /* === Embedded 模式 === */
+    body.embedded .navbar,
+    body.embedded .footer { display: none !important; }
+    body.embedded .section { padding-top: 28px !important; }
+    .course-link-card { transition: transform 0.15s, box-shadow 0.15s; }
+    .course-link-card:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+  </style>
 </head>
 <body>
 <script>
-  // 未登入直接離開
-  if (!localStorage.getItem('access_token')) {
+  // === embedded 偵測 ===
+  const IS_EMBEDDED = new URLSearchParams(window.location.search).get('embedded') === '1';
+  if (IS_EMBEDDED) document.body.classList.add('embedded');
+
+  // 未登入直接離開（embedded 由 shell 管 auth）
+  if (!IS_EMBEDDED && !localStorage.getItem('access_token')) {
     window.location.replace('login.html');
   }
-  // 取得 role，學生導回學習中心，老師/管理員才能看
+  // 取得 role：學生導回學習中心、admin 非 embedded 直接跳 shell、老師正常
   (async () => {
     const res = await fetch('/api/auth/profile/', {
       headers: { 'Authorization': 'Bearer ' + localStorage.getItem('access_token') }
@@ -21,9 +33,18 @@
     if (res.ok) {
       const profile = await res.json();
       if (profile.role === 'student') {
-        window.location.replace('/');
+        window.location.replace('/#my-courses');
+      } else if (profile.role === 'admin' && !IS_EMBEDDED) {
+        // 在 iframe 內就不跳 shell（避免套娃），補 embedded 重整
+        if (window.self !== window.top) {
+          const u = new URL(window.location.href);
+          u.searchParams.set('embedded', '1');
+          window.location.replace(u.toString());
+        } else {
+          window.location.replace('/admin-shell.html#courses');
+        }
       }
-    } else {
+    } else if (!IS_EMBEDDED) {
       window.location.replace('login.html');
     }
   })();
@@ -69,8 +90,10 @@
     function renderCourses(courses) {
       const grid = document.getElementById('course-list');
       if (!courses.length) { grid.innerHTML = '<p style="color:#aaa">無符合條件的課程</p>'; return; }
+      const sfx = IS_EMBEDDED ? '&embedded=1' : '';
       grid.innerHTML = courses.map(c => `
-        <div class="card">
+        <a class="card course-link-card" href="course-detail.html?id=${c.id}${sfx}"
+           style="text-decoration:none;color:inherit;cursor:pointer;display:block">
           <div class="card-img" style="background:var(--color-gray);display:flex;align-items:center;justify-content:center;font-size:3rem">📘</div>
           <div class="card-body">
             <span class="card-tag">${diffMap[c.difficulty] || c.difficulty}</span>
@@ -78,22 +101,13 @@
             <div class="card-desc">${c.description?.slice(0,80) || ''}...</div>
             <div style="display:flex;justify-content:space-between;align-items:center">
               <span style="font-size:0.8rem;color:#aaa">${c.lesson_count} 個單元</span>
-              <button class="btn btn-primary" style="font-size:0.85rem;padding:8px 18px"
-                onclick="handleEnroll(${c.id})">選課</button>
+              <span class="btn btn-primary" style="font-size:0.85rem;padding:8px 18px;pointer-events:none">
+                查看單元 →
+              </span>
             </div>
           </div>
-        </div>
+        </a>
       `).join('');
-    }
-
-    async function handleEnroll(courseId) {
-      if (!localStorage.getItem('access_token')) {
-        showToast('請先登入再選課', 'error');
-        setTimeout(() => window.location.href = 'login.html', 1500);
-        return;
-      }
-      const { ok, data } = await CoursesAPI.enroll(courseId);
-      showToast(ok ? '選課成功！' : (data?.detail || '選課失敗'), ok ? 'success' : 'error');
     }
 
     // Filter buttons
