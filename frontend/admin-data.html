@@ -472,10 +472,21 @@
       }
     }
 
+    const PROTECTED_MODELS = new Set(['attempts', 'progress', 'recommendations', 'adaptive', 'performance', 'enrollments']);
+
     async function deleteRow(id) {
-      if (!confirm('確定要刪除這筆資料？')) return;
+      if (PROTECTED_MODELS.has(state.model)) {
+        alert('此資料表屬學生學習歷程，受保護不開放刪除，以免影響研究分析。');
+        return;
+      }
+      if (!confirm('確定要刪除這筆資料？此操作無法復原。')) return;
       const res = await apiFetch(`/auth/admin/data/${state.model}/${id}/`, { method: 'DELETE' });
-      if (res && res.ok) loadData();
+      if (res && res.ok) {
+        loadData();
+      } else if (res) {
+        const body = await res.json().catch(() => ({}));
+        alert(body.detail || `刪除失敗（HTTP ${res.status}）`);
+      }
     }
 
     window.addEventListener('message', event => {
