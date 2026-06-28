@@ -88,7 +88,6 @@
       <div>
         <div class="crumb">AdaptLearn / 管理中心 / 資料</div>
         <h1 id="title">資料管理</h1>
-        <div class="sub">直接透過 API 管理資料，不使用 Django admin iframe。</div>
       </div>
       <button class="btn primary" id="create-btn">+ 新增資料</button>
     </header>
@@ -375,7 +374,7 @@
       const filters = state.data.filters || {};
       document.getElementById('filters').innerHTML = Object.entries(filters).map(([name, choices]) => `
         <label class="filter">
-          <span>${escapeHtml(name)}</span>
+          <span>${escapeHtml(colLabel(name))}</span>
           <select data-filter="${escapeHtml(name)}">
             <option value="">全部</option>
             ${choices.map(choice => `<option value="${escapeHtml(choice)}">${escapeHtml(valueText(choice))}</option>`).join('')}
