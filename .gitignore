@@ -210,3 +210,7 @@ __marimo__/
 *.docx
 教材/
 .claude/
+backend/Include/
+backend/Lib/
+backend/Scripts/
+backend/pyvenv.cfg

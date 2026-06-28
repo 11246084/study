@@ -91,6 +91,7 @@
     if (!quizId) window.location.href = 'courses.html';
 
     let quiz = null;
+    let quizReady = true;
     let selectedAnswers = {};
     let startTime = Date.now();
 
@@ -107,7 +108,7 @@
     function renderQuestion(q, idx) {
       const codeMatch = q.content.match(/```(?:python)?\n([\s\S]*?)```/);
       const textPart = q.content.replace(/```(?:python)?\n[\s\S]*?```/g, '').trim();
-      const codeBlock = codeMatch ? `<pre class="question-code">${codeMatch[1].replace(/</g,'&lt;')}</pre>` : '';
+      const codeBlock = codeMatch ? `<pre class="question-code">${escapeHtml(codeMatch[1])}</pre>` : '';
 
       let answerUI = '';
       if (q.question_type === 'multiple_choice') {
@@ -116,7 +117,7 @@
             <label class="choice-label" id="choice-label-${q.id}-${c.id}" onclick="selectChoice(${q.id}, ${c.id}, this)">
               <input type="radio" name="q${q.id}" value="${c.id}" />
               <div class="choice-marker">${LABELS[ci]}</div>
-              <span>${c.content}</span>
+              <span>${escapeHtml(c.content)}</span>
             </label>
           `).join('')}
         </div>`;
@@ -137,7 +138,7 @@
                    outline:none;resize:vertical;background:#1e1e1e;color:#d4d4d4"
             placeholder="# 在此撰寫你的程式碼..."
             oninput="selectText(${q.id}, this.value)"></textarea>
-          <div style="font-size:0.78rem;color:#aaa;margin-top:6px">提示：有作答即算完成，教師將批改程式碼正確性</div>`;
+          <div style="font-size:0.78rem;color:#aaa;margin-top:6px">提示：比對時忽略空白與大小寫；教師可設定多個可接受答案。</div>`;
       }
 
       return `
@@ -148,7 +149,7 @@
               ${q.question_type==='coding'?'程式設計題':q.question_type==='short_answer'?'填空題':'選擇題'}
             </span>
           </div>
-          <div class="question-text">${textPart}</div>
+          <div class="question-text">${escapeHtml(textPart)}</div>
           ${codeBlock}
           ${answerUI}
         </div>
@@ -176,7 +177,7 @@
         const ans = selectedAnswers[q.id];
         return ans !== undefined && ans !== '';
       });
-      document.getElementById('submit-btn').disabled = !allAnswered;
+      document.getElementById('submit-btn').disabled = !allAnswered || !quizReady;
     }
 
     function updateProgress() {
@@ -192,6 +193,10 @@
       const res = await apiFetch(`/assessments/${quizId}/`);
       if (!res || !res.ok) { showToast('無法載入評量', 'error'); return; }
       quiz = await res.json();
+      quizReady = quiz.is_ready_for_submission !== false;
+      if (!quizReady) {
+        showToast('此評量尚有程式題未設定標準答案，請通知教師。', 'error');
+      }
 
       document.title = `${quiz.title} — AdaptLearn`;
       document.getElementById('quiz-title-nav').textContent = quiz.title;
@@ -230,7 +235,9 @@
         const attempt = await res.json();
         window.location.href = `quiz-result.html?attempt_id=${attempt.id}&lesson_id=${lessonId || ''}`;
       } else {
-        showToast('提交失敗，請重試', 'error');
+        const errorData = res ? await res.json().catch(() => null) : null;
+        const message = errorData?.quiz_id || errorData?.answers || errorData?.detail || '提交失敗，請重試';
+        showToast(Array.isArray(message) ? message[0] : message, 'error');
         btn.textContent = '提交評量 →';
         btn.disabled = false;
       }

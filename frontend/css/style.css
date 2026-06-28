@@ -280,7 +280,12 @@ img { max-width: 100%; display: block; }
 .footer {
   background: var(--color-black);
   color: var(--color-white);
-  padding: 40px;
+  height: 50px;
+  padding: 0 16px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   text-align: center;
   font-size: 0.85rem;
   color: #666;

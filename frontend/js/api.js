@@ -5,6 +5,12 @@ function getToken() {
   return localStorage.getItem('access_token');
 }
 
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[char]);
+}
+
 // admin 預覽學生功能：若當前頁面 URL 帶 preview_as，所有 API 自動附加
 // （搭配後端 PreviewAsJWTAuthentication，admin 身分自動拿取該學生資料）
 function getPreviewAs() {
@@ -93,7 +99,7 @@ const AuthAPI = {
 
   async getProfile() {
     const res = await apiFetch('/auth/profile/');
-    return res.ok ? await res.json() : null;
+    return res && res.ok ? await res.json() : null;
   },
 
   async changePassword(payload) {
@@ -134,7 +140,7 @@ const CoursesAPI = {
       method: 'POST',
       body: JSON.stringify({ course: courseId }),
     });
-    return { ok: res.ok, data: await res.json() };
+    return { ok: Boolean(res && res.ok), data: res ? await res.json().catch(() => null) : null };
   },
 
   async myCourses() {

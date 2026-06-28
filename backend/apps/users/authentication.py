@@ -45,6 +45,7 @@ class PreviewAsJWTAuthentication(JWTAuthentication):
                 target = User.objects.get(id=int(preview_as), role='student')
             else:
                 target = User.objects.get(username=preview_as, role='student')
+            request.preview_as_admin = True
             return target, validated_token
         except User.DoesNotExist:
             # 找不到就退回 admin 自己

@@ -1,4 +1,5 @@
 from django.db import models
+from django.core.exceptions import ValidationError
 from apps.users.models import User
 
 
@@ -32,6 +33,10 @@ class SurveyScale(models.Model):
     def __str__(self):
         return self.name
 
+    def clean(self):
+        if self.score_min >= self.score_max:
+            raise ValidationError({'score_max': '分數上限必須大於分數下限。'})
+
 
 class SurveyScore(models.Model):
     """單一學生在某構念、某階段（前測/後測）的問卷分數。"""
@@ -54,3 +59,13 @@ class SurveyScore(models.Model):
 
     def __str__(self):
         return f'{self.student.username} - {self.scale.name} ({self.get_phase_display()}) {self.score}'
+
+    def clean(self):
+        errors = {}
+        if self.scale_id:
+            if self.scale.post_only and self.phase == 'pre':
+                errors['phase'] = '此量表僅允許後測資料。'
+            if not self.scale.score_min <= self.score <= self.scale.score_max:
+                errors['score'] = f'分數必須介於 {self.scale.score_min:g} 與 {self.scale.score_max:g}。'
+        if errors:
+            raise ValidationError(errors)

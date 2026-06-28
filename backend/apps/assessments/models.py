@@ -1,4 +1,5 @@
 from django.db import models
+from django.core.exceptions import ValidationError
 from apps.users.models import User
 from apps.courses.models import Lesson
 
@@ -32,7 +33,11 @@ class Question(models.Model):
     quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE, related_name='questions', verbose_name='所屬評量')
     content = models.TextField(verbose_name='題目內容')
     question_type = models.CharField(max_length=20, choices=QUESTION_TYPE_CHOICES, verbose_name='題型')
-    correct_answer = models.TextField(blank=True, verbose_name='正確答案（填空/程式題用）')
+    correct_answer = models.TextField(
+        blank=True,
+        verbose_name='正確答案（填空/程式題用）',
+        help_text='多個可接受答案請以獨立一行 ---OR--- 分隔；程式題比對會忽略空白與大小寫。',
+    )
     points = models.FloatField(default=10.0, verbose_name='配分')
     order = models.PositiveIntegerField(default=0, verbose_name='順序')
     explanation = models.TextField(blank=True, verbose_name='解析')
@@ -44,6 +49,10 @@ class Question(models.Model):
 
     def __str__(self):
         return f'Q{self.order}: {self.content[:50]}'
+
+    def clean(self):
+        if self.question_type == 'coding' and not self.correct_answer.strip():
+            raise ValidationError({'correct_answer': '程式題必須至少設定一個標準答案。'})
 
 
 class Choice(models.Model):
@@ -67,6 +76,12 @@ class QuizAttempt(models.Model):
     class Meta:
         verbose_name = '作答記錄'
         verbose_name_plural = '作答記錄'
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(score__gte=0, score__lte=100),
+                name='attempt_score_between_0_and_100',
+            ),
+        ]
 
     def __str__(self):
         return f'{self.student.username} - {self.quiz.title} ({self.score}分)'

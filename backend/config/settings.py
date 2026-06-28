@@ -109,6 +109,20 @@ CORS_ALLOWED_ORIGINS = config(
 CORS_ALLOW_ALL_ORIGINS = config('CORS_ALLOW_ALL_ORIGINS', default=False, cast=bool)
 CORS_ALLOW_CREDENTIALS = config('CORS_ALLOW_CREDENTIALS', default=False, cast=bool)
 
+# Production transport security. Set DEBUG=True only for local development.
+SECURE_SSL_REDIRECT = config('SECURE_SSL_REDIRECT', default=not DEBUG, cast=bool)
+SESSION_COOKIE_SECURE = config('SESSION_COOKIE_SECURE', default=not DEBUG, cast=bool)
+CSRF_COOKIE_SECURE = config('CSRF_COOKIE_SECURE', default=not DEBUG, cast=bool)
+SECURE_HSTS_SECONDS = config(
+    'SECURE_HSTS_SECONDS', default=31536000 if not DEBUG else 0, cast=int,
+)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = config(
+    'SECURE_HSTS_INCLUDE_SUBDOMAINS', default=not DEBUG, cast=bool,
+)
+SECURE_HSTS_PRELOAD = config('SECURE_HSTS_PRELOAD', default=not DEBUG, cast=bool)
+if config('TRUST_PROXY_SSL_HEADER', default=False, cast=bool):
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
 LANGUAGE_CODE = 'zh-hant'
 TIME_ZONE = 'Asia/Taipei'
 USE_I18N = True

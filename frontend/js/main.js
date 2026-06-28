@@ -53,8 +53,9 @@ async function renderSystemFooter() {
   const footer = document.createElement('footer');
   footer.id = 'system-footer';
   footer.style.cssText =
-    'margin-top:48px;padding:18px 16px;border-top:1px solid var(--color-border,#e4e1da);' +
-    'text-align:center;color:#8a8a8a;font-size:.8rem;line-height:1.6;';
+    'margin-top:0;height:50px;padding:2px 16px;box-sizing:border-box;' +
+    'border-top:1px solid var(--color-border,#e4e1da);display:flex;flex-direction:column;' +
+    'align-items:center;justify-content:center;text-align:center;color:#8a8a8a;font-size:.75rem;line-height:1.35;';
   footer.innerHTML =
     '<div>AdaptLearn · 程式設計適性學習輔助系統</div>' +
     '<div>系統累計登入 <b id="sf-logins" style="color:#555">—</b> 次</div>';

@@ -1,4 +1,6 @@
 from django.apps import apps
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import IntegrityError
 from django.db.models import Avg, Count, F, Max, Min, Q, ProtectedError
 from django.shortcuts import get_object_or_404
 from django.utils.crypto import get_random_string
@@ -886,8 +888,11 @@ class AdminDataView(views.APIView):
         if not config:
             return response.Response({'detail': 'Unknown data model.'}, status=status.HTTP_404_NOT_FOUND)
         qs = self.get_queryset(request, config, model)
-        page_size = min(int(request.GET.get('page_size', 25)), 100)
-        page = max(int(request.GET.get('page', 1)), 1)
+        try:
+            page_size = max(1, min(int(request.GET.get('page_size', 25)), 100))
+            page = max(int(request.GET.get('page', 1)), 1)
+        except (TypeError, ValueError):
+            return response.Response({'detail': 'Invalid pagination values.'}, status=status.HTTP_400_BAD_REQUEST)
         start = (page - 1) * page_size
         rows = qs[start:start + page_size]
         return response.Response({
@@ -910,9 +915,17 @@ class AdminDataView(views.APIView):
         data = request.data.copy()
         if key == 'users':
             password = data.pop('password', None) or get_random_string(16)
-            obj = User(username=data.pop('username'), **{k: data[k] for k in data if k in config['editable']})
+            username = data.pop('username', None)
+            if not username:
+                return response.Response({'detail': 'username is required.'}, status=status.HTTP_400_BAD_REQUEST)
+            obj = User(username=username, **{k: data[k] for k in data if k in config['editable']})
             obj.set_password(password)
-            obj.save()
+            try:
+                obj.full_clean()
+                obj.save()
+            except (DjangoValidationError, IntegrityError, TypeError, ValueError) as exc:
+                detail = getattr(exc, 'message_dict', None) or str(exc)
+                return response.Response({'detail': detail}, status=status.HTTP_400_BAD_REQUEST)
             return response.Response(self.serialize(obj, config), status=status.HTTP_201_CREATED)
 
         obj = model()
@@ -925,7 +938,12 @@ class AdminDataView(views.APIView):
                 setattr(obj, f'{name}_id', value or None)
             else:
                 setattr(obj, name, _coerce_value(field, value))
-        obj.save()
+        try:
+            obj.full_clean()
+            obj.save()
+        except (DjangoValidationError, IntegrityError, TypeError, ValueError) as exc:
+            detail = getattr(exc, 'message_dict', None) or str(exc)
+            return response.Response({'detail': detail}, status=status.HTTP_400_BAD_REQUEST)
         return response.Response(self.serialize(obj, config), status=status.HTTP_201_CREATED)
 
     def patch(self, request, key, pk):
@@ -942,7 +960,12 @@ class AdminDataView(views.APIView):
                 setattr(obj, f'{name}_id', value or None)
             else:
                 setattr(obj, name, _coerce_value(field, value))
-        obj.save()
+        try:
+            obj.full_clean()
+            obj.save()
+        except (DjangoValidationError, IntegrityError, TypeError, ValueError) as exc:
+            detail = getattr(exc, 'message_dict', None) or str(exc)
+            return response.Response({'detail': detail}, status=status.HTTP_400_BAD_REQUEST)
         return response.Response(self.serialize(obj, config))
 
     # 學生作答／學習歷程屬研究資料，受保護不開放從資料管理直接刪除

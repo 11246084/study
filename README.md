@@ -128,4 +128,24 @@ python manage.py runserver
 |------|----------|
 | `multiple_choice`（初級） | 比對 `choice.id` |
 | `short_answer`（中級） | 去空白、轉小寫後完全比對 |
-| `coding`（高級） | 非空作答即給滿分（教師人工複審） |
+| `coding`（高級） | 與教師設定的標準答案比對；忽略空白與大小寫。多個答案以獨立一行 `---OR---` 分隔 |
+
+## 四日課程單元
+
+| 日期 | 上午 09:00–12:00 | 下午 13:30–16:30 |
+|---|---|---|
+| 7/6 | 環境、變數、資料型態與 I/O | 條件判斷 If／Elif／Else |
+| 7/7 | For／While 與基礎演算法 | 迴圈實作與基礎題庫 |
+| 7/8 | List 與 String 進階操作 | 串列與字串實戰題庫 |
+| 7/9 | 函式與模組化 | 遞迴與 Dictionary 應用 |
+
+三級教材統一維護在 `frontend/assets/materials/`；`seed_data` 會從這裡更新資料庫中的單元名稱、內容與時數。
+
+程式題必須設定至少一個標準答案才能提交，不使用待人工評閱流程。
+
+## 執行測試
+
+```bash
+cd backend
+../venv/Scripts/python.exe manage.py test --settings=config.test_settings
+```

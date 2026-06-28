@@ -14,6 +14,7 @@ class LearningProgress(models.Model):
     lesson = models.ForeignKey(Lesson, on_delete=models.PROTECT, related_name='progress', verbose_name='單元')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='not_started', verbose_name='狀態')
     time_spent = models.PositiveIntegerField(default=0, verbose_name='花費時間(分鐘)')
+    time_spent_seconds = models.PositiveIntegerField(default=0, verbose_name='花費時間(秒)')
     visit_count = models.PositiveIntegerField(default=0, verbose_name='瀏覽次數')
     last_accessed = models.DateTimeField(auto_now=True)
     completed_at = models.DateTimeField(null=True, blank=True)
@@ -68,6 +69,20 @@ class AdaptiveLearningPath(models.Model):
         verbose_name_plural = '適性學習路徑'
         unique_together = ('student', 'unit_number')
         ordering = ['unit_number']
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(unit_number__gte=1, unit_number__lte=8),
+                name='adaptive_unit_between_1_and_8',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(current_level__gte=1, current_level__lte=3),
+                name='adaptive_level_between_1_and_3',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(last_score__gte=0, last_score__lte=100),
+                name='adaptive_score_between_0_and_100',
+            ),
+        ]
 
     def __str__(self):
         return f'{self.student.username} Unit{self.unit_number} Lv{self.current_level}'

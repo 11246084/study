@@ -104,7 +104,7 @@
 
       // 分數卡片
       document.getElementById('score-card').innerHTML = `
-        <div style="font-size:0.85rem;color:#aaa;margin-bottom:12px">${data.quiz_title}</div>
+        <div style="font-size:0.85rem;color:#aaa;margin-bottom:12px">${escapeHtml(data.quiz_title)}</div>
         <div class="score-big"><span>${Math.round(data.score)}</span> 分</div>
         <div class="score-label">滿分 100 分</div>
         <div class="pass-badge ${data.is_passed ? 'pass' : 'fail'}">
@@ -124,26 +124,26 @@
         list.innerHTML = answers.map((a, i) => {
           const codeMatch = a.question_content.match(/```(?:python)?\n([\s\S]*?)```/);
           const textPart = a.question_content.replace(/```(?:python)?\n[\s\S]*?```/g, '').trim();
-          const codeBlock = codeMatch ? `<div class="answer-code">${codeMatch[1].replace(/</g,'&lt;')}</div>` : '';
+          const codeBlock = codeMatch ? `<div class="answer-code">${escapeHtml(codeMatch[1])}</div>` : '';
 
           return `
             <div class="answer-item ${a.is_correct ? 'correct' : 'wrong'}">
               <div class="answer-status ${a.is_correct ? 'correct' : 'wrong'}">
                 ${a.is_correct ? '✓ 答對' : '✗ 答錯'} · ${a.points_earned} 分
               </div>
-              <div class="answer-q">${i + 1}. ${textPart}</div>
+              <div class="answer-q">${i + 1}. ${escapeHtml(textPart)}</div>
               ${codeBlock}
               <div class="answer-detail">
                 <div class="label">你的作答：</div>
-                <div>${a.student_answer || '未作答'}</div>
+                <pre style="white-space:pre-wrap;margin:0">${escapeHtml(a.student_answer || '未作答')}</pre>
                 ${!a.is_correct && a.correct_choice ? `
                   <div class="label" style="color:#38a169">正確答案：</div>
-                  <div style="color:#38a169">${a.correct_choice}</div>
+                  <pre style="color:#38a169;white-space:pre-wrap;margin:0">${escapeHtml(a.correct_choice)}</pre>
                 ` : ''}
               </div>
               ${a.explanation ? `
                 <div class="explanation-box">
-                  💡 <strong>解析：</strong>${a.explanation}
+                  💡 <strong>解析：</strong>${escapeHtml(a.explanation)}
                 </div>
               ` : ''}
             </div>

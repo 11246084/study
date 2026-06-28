@@ -126,13 +126,13 @@
       // Hero
       document.getElementById('course-hero').innerHTML = `
         <span class="card-tag" style="background:var(--color-lime);margin-bottom:16px;display:inline-block">
-          ${diffMap[course.difficulty] || course.difficulty}
+          ${escapeHtml(diffMap[course.difficulty] || course.difficulty)}
         </span>
-        <h1 style="font-size:clamp(1.5rem,4vw,2.5rem);font-weight:900;margin-bottom:12px">${course.title}</h1>
-        <p style="color:#aaa;max-width:600px">${course.description}</p>
+        <h1 style="font-size:clamp(1.5rem,4vw,2.5rem);font-weight:900;margin-bottom:12px">${escapeHtml(course.title)}</h1>
+        <p style="color:#aaa;max-width:600px">${escapeHtml(course.description)}</p>
         <div style="display:flex;gap:24px;margin-top:24px">
           <div><span style="font-size:1.5rem;font-weight:800">${course.lesson_count}</span><div style="font-size:0.8rem;color:#666">個單元</div></div>
-          <div><span style="font-size:1.5rem;font-weight:800">${course.teacher_name}</span><div style="font-size:0.8rem;color:#666">授課教師</div></div>
+          <div><span style="font-size:1.5rem;font-weight:800">${escapeHtml(course.teacher_name)}</span><div style="font-size:0.8rem;color:#666">授課教師</div></div>
         </div>
       `;
 
@@ -141,7 +141,7 @@
         <div style="display:flex;flex-direction:column;gap:10px;font-size:0.9rem">
           <div style="display:flex;justify-content:space-between"><span style="color:#aaa">難度</span><span style="font-weight:600">${diffMap[course.difficulty]}</span></div>
           <div style="display:flex;justify-content:space-between"><span style="color:#aaa">單元數</span><span style="font-weight:600">${course.lesson_count} 個</span></div>
-          <div style="display:flex;justify-content:space-between"><span style="color:#aaa">授課教師</span><span style="font-weight:600">${course.teacher_name}</span></div>
+          <div style="display:flex;justify-content:space-between"><span style="color:#aaa">授課教師</span><span style="font-weight:600">${escapeHtml(course.teacher_name)}</span></div>
         </div>
       `;
 
@@ -156,7 +156,7 @@
         <div class="lesson-item" onclick="goToLesson(${l.id})">
           <div class="lesson-num">${l.order}</div>
           <div class="lesson-info">
-            <div class="lesson-title-text">${l.title}</div>
+            <div class="lesson-title-text">${escapeHtml(l.title)}</div>
             <div class="lesson-meta">${typeMap[l.lesson_type] || l.lesson_type} · 約 ${l.duration_minutes} 分鐘</div>
           </div>
           <span class="lesson-badge">${typeMap[l.lesson_type] || l.lesson_type}</span>

@@ -84,7 +84,7 @@ Django 5.2 + DRF 3.15.2, JWT auth via `djangorestframework-simplejwt`.
 **Grading logic** in `apps/assessments/views.py`:
 - `multiple_choice`: match `choice.id` string
 - `short_answer`: strip + lowercase exact match against `question.correct_answer`
-- `coding`: any non-empty submission gets full points (teacher reviews manually)
+- `coding`: compares against `Question.correct_answer` after removing whitespace and case-folding. Multiple accepted answers use a standalone `---OR---` separator. Submission is rejected when no standard answer is configured.
 
 ### Frontend (`frontend/`)
 
@@ -107,8 +107,10 @@ Vanilla HTML/CSS/JS — no framework, no build tool.
 - Creates 3 courses (beginner/intermediate/advanced), each with 8 lessons and 8 quizzes
 - Beginner → 10 `multiple_choice` questions per quiz (with `Choice` records)
 - Intermediate → 10 `short_answer` questions per quiz (`correct_answer` field on `Question`)
-- Advanced → 10 `coding` questions per quiz (no auto-grading)
-- Question banks: `QUIZ_QUESTIONS`, `SHORT_ANSWER_QUESTIONS`, `CODING_QUESTIONS` arrays (8 units × 10 questions each)
+- Advanced → 10 `coding` questions per quiz; every item has at least one exact accepted answer
+- Active question banks live in `curriculum_questions.py` (8 units × 10 questions per level); legacy banks remain in `seed_data.py` only for history.
+- Curriculum materials are version-controlled under `frontend/assets/materials/`; `seed_data` updates existing lesson titles, content, and the 180-minute half-day duration.
+- Current unit order follows the four-day schedule: fundamentals/I-O, conditionals, loops/algorithms, loop practice, list/string, list/string practice, functions, recursion/dictionaries.
 - To re-seed after schema changes: delete quizzes for affected difficulty in the shell, then re-run `seed_data`
 
 ## Adaptive Recommendation Logic (needs 1 & 4)

@@ -1,367 +1,317 @@
-# Python 程式設計教材 — Level 3 進階版
+# Python 四日實作課程 — Level 3 進階版
 
-> **適合對象**：語法熟練，準備提升問題解決與設計思維的同學  
-> **教材風格**：精簡說明 ＋ 幾乎空白程式框架 ＋ 幾乎無提示  
-> **認知負荷**：高 ── 精簡說明，幾乎由學生獨立設計與撰寫  
-> **學習方式**：解題與設計達成目標；鼓勵多種解法、自主驅動
+> 適合已熟悉基礎語法，準備加強演算法、資料建模、模組化與獨立解題的學習者。
+> 本級別保留必要摘要，把時間集中在設計、測試與比較不同解法。
 
----
+## 課程安排
 
-## 目錄
-
-- [Unit 1｜print 輸出](#unit-1print-輸出)
-- [Unit 2｜input 輸入與運算](#unit-2input-輸入與運算)
-- [Unit 3｜if 條件判斷](#unit-3if-條件判斷)
-- [Unit 4｜多條件 if](#unit-4多條件-if)
-- [Unit 5｜list 串列](#unit-5list-串列)
-- [Unit 6｜range 數列](#unit-6range-數列)
-- [Unit 7｜for 迴圈](#unit-7for-迴圈)
-- [Unit 8｜迴圈應用](#unit-8迴圈應用)
+| 日期 | 上午 | 下午 |
+|---|---|---|
+| 7/6 | Unit 1 型態、I/O 與資料驗證 | Unit 2 條件建模 |
+| 7/7 | Unit 3 迴圈與演算法模式 | Unit 4 演算法題庫 |
+| 7/8 | Unit 5 List／String 進階 | Unit 6 資料處理實戰 |
+| 7/9 | Unit 7 函式與模組化 | Unit 8 遞迴與 Dictionary |
 
 ---
 
-## Unit 1｜print 輸出
+## Unit 1｜環境、變數、資料型態與 I/O
 
-### 📖 概念摘要
+### 概念摘要
 
-`print()` 支援 `sep`、`end` 參數控制分隔與結尾字元。格式化輸出三種方式：
-- `%` 格式符：`"%10.2f" % value`
-- `format()`：`"{:^10.2f}".format(value)`
-- f-string（建議）：`f"{value:^10.2f}"`
-
-對齊控制：`<` 靠左、`>` 靠右、`^` 置中；`+` 顯示正負號；填充字元放在對齊符之前。
-
----
-
-### 💻 參考框架
+- Python 是動態型態語言，名稱指向物件。
+- `int`、`float`、`bool`、`str` 的轉換可能失敗，輸入需驗證。
+- 優先使用 f-string；格式規格可控制寬度、對齊與精度。
 
 ```python
-# 請實作一個「商品收據產生器」
-# 要求：
-#   1. 定義至少 3 種商品（名稱、單價、數量）
-#   2. 以對齊格式輸出收據（商品名靠左，金額靠右，總寬度一致）
-#   3. 計算並輸出小計、稅金（5%）和總計
-#   4. 收據頂部和底部用 = 符號組成分隔線
+def read_positive_float(prompt):
+    while True:
+        try:
+            value = float(input(prompt))
+            if value > 0:
+                return value
+        except ValueError:
+            pass
+        print("請輸入正數")
 
-# 預期輸出格式範例：
-# =============================
-#  品名           單價  數量  小計
-# -----------------------------
-#  咖啡           120     2   240
-#  三明治          85     1    85
-#  果汁            60     3   180
-# -----------------------------
-#  小計                       505
-#  稅金 (5%)                   25
-#  總計                       530
-# =============================
 
+radius = read_positive_float("半徑：")
+area = 3.14159 * radius ** 2
+print(f"{area=:.2f}")
 ```
 
----
+### 挑戰任務
 
-### ✏️ 挑戰題
-
-**挑戰 1：對齊輸出**
-
-設計一個「成績報表」程式，輸入多個學生的姓名和成績，以表格格式輸出，要求：欄位對齊、平均分標示、最高分用星號（`*`）標記。
-
-**挑戰 2：動態分隔線**
-
-設計一個函式 `print_table(data, headers)`，能接收二維資料和表頭，自動計算每欄最大寬度，輸出對齊的文字表格。
+1. 設計可處理錯誤輸入的匯率換算器。
+2. 不使用 `eval()`，解析 `數字 運算子 數字` 並完成四則運算。
+3. 比較 `/`、`//`、`%` 在負數上的結果。
 
 ---
 
-## Unit 2｜input 輸入與運算
+## Unit 2｜條件判斷 If／Elif／Else
 
-### 📖 概念摘要
+### 設計重點
 
-`input()` 回傳值為字串，數值運算需自行處理型別轉換（`int()`、`float()`）。  
-`eval()` 可解析字串為 Python 運算式，功能強大但存在安全風險，生產環境慎用。  
-型別轉換失敗時會拋出 `ValueError`，可用 `try...except` 處理（進階）。
-
----
-
-### 💻 參考框架
+- 將條件視為集合，確認是否重疊或遺漏。
+- 善用 chained comparison：`0 <= score <= 100`。
+- 先處理 guard clause，可降低巢狀層級。
 
 ```python
-# 請實作一個「互動式計算機」
-# 要求：
-#   1. 輸入姓名，程式以姓名問候
-#   2. 連續輸入兩個數字和一個運算符號（+、-、*、/）
-#   3. 輸出計算結果（浮點數保留 4 位小數）
-#   4. 加分：加入除以零的錯誤處理
-#   5. 加分：以 f-string 格式化輸出完整算式和結果
-
+def shipping_fee(amount, is_member, region):
+    if amount < 0:
+        raise ValueError("amount 不可為負數")
+    if region not in {"north", "central", "south"}:
+        raise ValueError("未知地區")
+    if amount >= 1000 or (is_member and amount >= 500):
+        return 0
+    return 80 if region == "north" else 120
 ```
 
----
+### 挑戰任務
 
-### ✏️ 挑戰題
-
-**挑戰 1：單位換算器**
-
-設計「多功能單位換算器」，支援：溫度（℃↔℉）、長度（cm↔inch）、重量（kg↔lb）。使用者輸入數值和換算方向，輸出結果保留 2 位小數，附上單位標示。
-
-**挑戰 2：個人成績報告**
-
-輸入姓名和三科成績，計算平均分並判斷等第（A/B/C/F），以格式化對齊的方式輸出完整報告。思考：哪個步驟的型別轉換最關鍵？
+- 將複雜票價規則整理成決策表，再實作程式。
+- 使用邊界值測試成績分級與 BMI 分級。
+- 比較巢狀 `if` 與 guard clause 的可讀性。
 
 ---
 
-## Unit 3｜if 條件判斷
+## Unit 3｜For／While 與基礎演算法
 
-### 📖 概念摘要
+### 演算法模式
 
-關係運算子（`==`、`!=`、`>`、`<`、`>=`、`<=`）和邏輯運算子（`and`、`or`、`not`）可組合複雜條件。  
-Python 支援三元運算式：`x if 條件 else y`。  
-PEP 8 建議直接使用布林值判斷，避免 `if x == True`。
-
----
-
-### 💻 參考框架
+- reduce：累加、連乘。
+- filter：篩選符合條件的元素。
+- search：找到後立即 `break`。
+- sentinel loop：讀到特殊值才停止。
+- two-level iteration：處理表格或組合。
 
 ```python
-# 請實作一個「身份驗證系統」
-# 要求：
-#   1. 輸入使用者帳號和密碼
-#   2. 帳號和密碼需同時正確才能登入
-#   3. 加分：帳號存在但密碼錯誤 vs 帳號不存在，輸出不同訊息
-#   4. 加分：使用三元運算式輸出登入狀態
+def min_max(numbers):
+    if not numbers:
+        raise ValueError("numbers 不可為空")
 
+    minimum = maximum = numbers[0]
+    for number in numbers[1:]:
+        if number < minimum:
+            minimum = number
+        elif number > maximum:
+            maximum = number
+    return minimum, maximum
 ```
 
----
+### 挑戰任務
 
-### ✏️ 挑戰題
-
-**挑戰 1：閏年判斷**
-
-設計閏年判斷程式（條件：能被 4 整除但不被 100 整除，或能被 400 整除）。  
-嘗試用一行三元運算式完成判斷，並說明邏輯。
-
-**挑戰 2：三角形判斷**
-
-輸入三條邊長，判斷能否構成三角形，若可以則進一步判斷是等邊、等腰還是一般三角形。用最簡潔的條件寫法實現。
+1. 實作質數篩選並分析迴圈次數。
+2. 找出數列的第二大相異值，只走訪一次。
+3. 將 `while` 寫法改成 `for`，比較適用情境。
 
 ---
 
-## Unit 4｜多條件 if
+## Unit 4｜迴圈實作與基礎題庫
 
-### 📖 概念摘要
+### 題庫 A：數值演算法
 
-`elif` 讓程式在多個條件中選擇第一個符合的分支執行。條件順序至關重要：先寫嚴格條件，再寫寬鬆條件。  
-可結合邏輯運算子縮減 elif 數量。巢狀 if 可處理多維度判斷，但過深會降低可讀性。
+- 最大公因數與最小公倍數。
+- 完全數、質數與因數分解。
+- 十進位轉二進位，不使用 `bin()`。
 
----
+### 題庫 B：巢狀迴圈
 
-### 💻 參考框架
+- 質數表與九九乘法表。
+- 菱形、空心矩形圖案。
+- 二維資料的列總和與欄總和。
+
+### 題庫 C：狀態追蹤
 
 ```python
-# 請實作一個「個人健康評估系統」
-# 要求：
-#   1. 輸入性別、年齡、身高、體重
-#   2. 計算 BMI，並依標準輸出健康狀態
-#   3. 依年齡分組（兒童/青少年/成人/老年）給出不同建議
-#   4. 加分：加入腰圍輸入，結合 BMI 和腰圍雙重判斷健康風險
-#   5. 格式化輸出完整評估報告
+def first_longest_run(values):
+    """回傳第一段最長連續相同值及長度。"""
+    best_value = current_value = values[0]
+    best_length = current_length = 1
 
+    for value in values[1:]:
+        if value == current_value:
+            current_length += 1
+        else:
+            current_value = value
+            current_length = 1
+        if current_length > best_length:
+            best_value = current_value
+            best_length = current_length
+    return best_value, best_length
 ```
 
----
+### 挑戰任務
 
-### ✏️ 挑戰題
-
-**挑戰 1：所得稅計算**
-
-設計 2024 年度個人綜合所得稅計算程式（台灣，5 個稅率級距）。  
-輸入全年所得，扣除免稅額與扣除額後，按級距計算應繳稅額。
-
-**挑戰 2：星座判斷**
-
-輸入生日（月份和日期），判斷星座（12 個），思考如何讓條件判斷邏輯最簡潔。嘗試兩種不同的實作方式並比較優劣。
+- 1A2B 猜數字核心。
+- 不使用排序函式找中位數。
+- 實作氣泡排序並統計比較與交換次數。
 
 ---
 
-## Unit 5｜list 串列
+## Unit 5｜List 與 String 進階操作
 
-### 📖 概念摘要
+### 核心議題
 
-串列支援正反向索引、切片（`[start:end:step]`）、統計函式（`max/min/sum/len`）。  
-常用方法：`append`、`insert`、`pop`、`remove`、`sort`、`sorted`、`reverse`、`index`、`count`。  
-`in` / `not in` 可快速檢查元素是否存在。二維串列用 `[row][col]` 存取。切片拷貝（`x[:]`）產生獨立副本，賦值只複製參考。
-
----
-
-### 💻 參考框架
+- aliasing 與 shallow copy。
+- 切片、unpacking 與 comprehension。
+- `enumerate()`、`zip()` 與二維串列。
+- 字串不可變性及常見清理流程。
 
 ```python
-# 請實作一個「班級成績管理系統」
-# 要求：
-#   1. 儲存多位學生的姓名和三科成績（用二維串列）
-#   2. 計算每位學生的總分和平均分
-#   3. 依總分排序，輸出名次
-#   4. 找出每科最高分和最低分
-#   5. 加分：支援新增、刪除學生資料
-#   6. 格式化輸出完整成績表
+records = ["Amy,88", "Bob,72", "Cindy,95"]
+parsed = []
 
+for record in records:
+    name, score = record.split(",")
+    parsed.append((name, int(score)))
+
+ranking = sorted(parsed, key=lambda item: item[1], reverse=True)
 ```
 
----
+### Tuple 延伸
 
-### ✏️ 挑戰題
-
-**挑戰 1：購物車系統**
-
-設計一個互動式購物車，支援：新增商品（名稱+價格）、刪除商品、查看清單（依價格排序）、計算總金額。思考：如何避免重複新增同一商品？
-
-**挑戰 2：矩陣轉置**
-
-不使用任何 NumPy，用純 Python 串列生成式，將 n×m 的二維串列轉置為 m×n。嘗試用一行程式完成，並說明邏輯。
-
----
-
-## Unit 6｜range 數列
-
-### 📖 概念摘要
-
-`range(start, stop, step)` 產生惰性序列，`step` 可為負數。  
-串列生成式語法：`[expr for item in iterable if condition]`  
-可巢狀多層：`[(a,b,c) for a in ... for b in ... for c in ... if ...]`  
-`chr()` / `ord()` 可與 range 結合產生字元序列。
-
----
-
-### 💻 參考框架
+元組適合固定結構資料與多值回傳。可用 unpacking 提升可讀性。
 
 ```python
-# 請實作以下三個任務（選擇至少兩個）
-
-# 任務 A：用串列生成式找出 1000 以內的所有質數
-# （提示：需要用到巢狀或嵌套邏輯）
-
-# 任務 B：產生所有邊長在 1~20 之間的畢氏三元組 (a, b, c)
-# 滿足 a² + b² = c²，且 a <= b <= c
-
-# 任務 C：產生 ASCII 碼 32~126 的所有可見字元，
-# 並以每行 16 個的格式整齊輸出
-
+for rank, (name, score) in enumerate(ranking, start=1):
+    print(rank, name, score)
 ```
+
+### 挑戰任務
+
+- 手動實作 `split()` 的簡化版本。
+- 將二維矩陣轉置，不使用外部套件。
+- 說明 `a = b`、`a = b[:]`、`a = b.copy()` 的差異。
 
 ---
 
-### ✏️ 挑戰題
+## Unit 6｜串列與字串實戰題庫
 
-**挑戰 1：等差數列應用**
+### 資料處理管線
 
-設計一個函式 `arithmetic_sequence(a, d, n)`，回傳首項為 `a`、公差為 `d`、共 `n` 項的等差數列串列，並計算總和與平均值。嘗試用一行串列生成式實現。
+1. 驗證與清理原始輸入。
+2. 解析成結構化資料。
+3. 轉換、篩選、聚合。
+4. 依指定格式輸出。
 
-**挑戰 2：數字金字塔**
-
-使用 range 和格式化輸出，印出以下圖案（n=5）：
-```
-    1
-   121
-  12321
- 1234321
-123454321
-```
-思考：如何計算每行的空格數量與數字規律？
-
----
-
-## Unit 7｜for 迴圈
-
-### 📖 概念摘要
-
-`for` 可遍歷任何可迭代物件（串列、字串、range、enumerate、zip 等）。`break` 強制離開迴圈；`continue` 跳過當次迭代；`for...else` 的 else 在沒有 break 時執行。`enumerate(iterable, start=0)` 同時取得索引和元素；`zip()` 可平行遍歷多個串列。
-
----
-
-### 💻 參考框架
+### 實戰一：文字分析
 
 ```python
-# 請實作「NBA 球員數據分析系統」
-# 給定資料（自行定義或擴充）：
-players = [
-    {"name": "James",  "scores": [28, 35, 22, 41, 30, 18, 37, 25]},
-    {"name": "Curry",  "scores": [31, 27, 42, 19, 38, 45, 29, 33]},
-    {"name": "Durant", "scores": [25, 38, 30, 27, 44, 32, 21, 36]},
-]
+def normalize(text):
+    return "".join(char.lower() for char in text if char.isalnum())
 
-# 要求：
-#   1. 計算每位球員的場均得分、最高分、最低分
-#   2. 找出每位球員得分超過 35 分的場次（場次從第 1 場開始）
-#   3. 比較三位球員的場均得分，輸出排名
-#   4. 加分：用 for...else 設計「搜尋某球員在哪場得最高分」
-#   5. 加分：用 zip 同時遍歷多位球員的某場數據
 
+def is_palindrome(text):
+    cleaned = normalize(text)
+    return cleaned == cleaned[::-1]
 ```
 
----
+### 實戰二：簡易 CSV
 
-### ✏️ 挑戰題
+讀入多行 `姓名,分數`，拒絕格式錯誤或超出 0–100 的資料，再依分數排序。
 
-**挑戰 1：凱薩密碼**
+### 挑戰任務
 
-實作凱薩密碼（Caesar Cipher）：輸入明文和位移量 k，用 for 迴圈逐一處理每個字元（只加密英文字母，大小寫分開處理，數字和符號不變），輸出密文。同時實作解密函式。
-
-**挑戰 2：巢狀迴圈進階**
-
-不用任何現成排序函式，自行用巢狀 for 迴圈實作「氣泡排序法（Bubble Sort）」，並計算排序過程中的比較次數和交換次數。
-
----
-
-## Unit 8｜迴圈應用
-
-### 📖 概念摘要
-
-`while` 迴圈適合「次數不固定、依條件決定是否繼續」的場景。`while True: ... break` 是常見的「直到條件成立才離開」模式。`while` 可直接遍歷可迭代物件（`while lst:`，串列空了才停）。累加器、計數器、最大最小值追蹤是迴圈三大核心應用模式。
+- 凱薩密碼加密與解密。
+- Run-length encoding：`AAABBCCCC` → `A3B2C4`。
+- 找出兩段文字共同出現且頻率最高的詞。
+- 用二維串列完成井字棋勝負判斷。
 
 ---
 
-### 💻 參考框架
+## Unit 7｜函式與模組化
+
+### 設計原則
+
+- 函式介面應清楚：參數代表輸入，`return` 代表輸出。
+- 避免全域狀態與可變預設參數。
+- 將純計算與 I/O 分離，讓函式容易測試。
 
 ```python
-# 請實作「猜數字遊戲 1A2B」
-# 規則：
-#   - 系統隨機產生一組 4 位不重複數字（密碼）
-#   - 玩家每次輸入 4 位數字猜測
-#   - 數字和位置都對：A
-#   - 數字對但位置不對：B
-#   - 例如密碼 [1,2,3,4]，猜測 [1,3,5,4] → 2A1B
-#   - 猜中（4A0B）顯示恭喜和猜測次數
-#   - 加分：限制猜測次數（如 8 次），超過則顯示失敗和答案
-#   - 加分：輸入驗證（4位、不重複、純數字）
-
-import random
-
-# 你的程式從這裡開始：
-
+def summarize(numbers):
+    if not numbers:
+        raise ValueError("numbers 不可為空")
+    return {
+        "count": len(numbers),
+        "total": sum(numbers),
+        "average": sum(numbers) / len(numbers),
+        "minimum": min(numbers),
+        "maximum": max(numbers),
+    }
 ```
 
----
+### 模組化範例
 
-### ✏️ 挑戰題
+將成績系統拆成：
 
-**挑戰 1：數值積分近似**
+- `parse_scores(text)`：解析輸入。
+- `validate_score(score)`：驗證範圍。
+- `summarize(scores)`：計算統計。
+- `format_report(result)`：產生輸出。
 
-使用 while 迴圈，以「矩形法」近似計算 ∫₀¹ x² dx 的值（理論值為 1/3）。分別用寬度 0.1、0.01、0.001 計算，比較與理論值的誤差。
+### 挑戰任務
 
-**挑戰 2：質因數分解**
-
-設計程式，輸入一個正整數，用 while 迴圈輸出其完整的質因數分解結果。例如：`360 = 2³ × 3² × 5`。要求使用上標格式輸出（如 `**` 表示次方，或 Unicode 上標字元）。
-
-**挑戰 3：綜合整合**
-
-設計一個「學生成績管理系統」，整合前面所有單元的知識：
-- while 迴圈持續接受操作指令（新增/查詢/刪除/統計/離開）
-- 串列儲存學生資料
-- for 迴圈進行統計運算
-- if/elif 判斷操作類別
-- f-string 格式化輸出報表
+- 使用 `*args` 建立可接受任意數量資料的平均函式。
+- 使用 `**kwargs` 建立學生資料。
+- 為函式撰寫正常、邊界與錯誤輸入測試。
+- 將程式拆成兩個 `.py` 模組並使用 `import`。
 
 ---
 
-*Level 3 進階版 ── 完*  
-*前後測與 Level 1、Level 2 使用相同評量題目，確保跨層次比較公平*
+## Unit 8｜遞迴與 Dictionary 應用
+
+### 遞迴三要素
+
+1. 終止條件。
+2. 問題規模縮小。
+3. 組合子問題結果。
+
+```python
+def binary_search(values, target, left=0, right=None):
+    if right is None:
+        right = len(values) - 1
+    if left > right:
+        return -1
+
+    middle = (left + right) // 2
+    if values[middle] == target:
+        return middle
+    if target < values[middle]:
+        return binary_search(values, target, left, middle - 1)
+    return binary_search(values, target, middle + 1, right)
+```
+
+### Dictionary 建模
+
+```python
+students = {
+    "S001": {"name": "Amy", "scores": [88, 92, 85]},
+    "S002": {"name": "Bob", "scores": [72, 80, 78]},
+}
+
+ranking = sorted(
+    students.items(),
+    key=lambda item: sum(item[1]["scores"]) / len(item[1]["scores"]),
+    reverse=True,
+)
+```
+
+### Set 延伸
+
+使用交集、聯集、差集處理選課名單或資料去重。
+
+### 挑戰任務
+
+- 比較階乘的迴圈與遞迴版本。
+- 用字典建立詞頻分析器。
+- 遞迴走訪巢狀字典，輸出所有鍵值路徑。
+- 完成模組化學生成績管理系統，加入查詢、排名與統計。
+
+---
+
+## 進階完課標準
+
+- 能說明解法的正確性、邊界與可能失敗情況。
+- 能將重複邏輯抽成可測試函式。
+- 能選擇合適的資料結構，而非只讓程式「跑得動」。
+- 能比較迴圈與遞迴、串列與字典等不同設計的取捨。

@@ -13,18 +13,18 @@ from apps.assessments.models import Quiz, Question, Choice
 
 User = get_user_model()
 
-# 教材路徑（相對於 manage.py 所在的 backend/ 目錄的上一層）
-MATERIALS_DIR = Path(__file__).resolve().parents[5] / '教材'
+# 使用版本控制內的前端教材，避免「教材/」副本與實際頁面不同步。
+MATERIALS_DIR = Path(__file__).resolve().parents[5] / 'frontend' / 'assets' / 'materials'
 
 UNIT_TITLES = [
-    'print 輸出',
-    'input 輸入與運算',
-    'if 條件判斷',
-    '多條件 if',
-    'list 串列',
-    'range 數列',
-    'for 迴圈',
-    '迴圈應用',
+    '環境、變數、資料型態與 I/O',
+    '條件判斷 If／Elif／Else',
+    'For／While 與基礎演算法',
+    '迴圈實作與基礎題庫',
+    'List 與 String 進階操作',
+    '串列與字串實戰題庫',
+    '函式與模組化',
+    '遞迴與 Dictionary 應用',
 ]
 
 COURSES = [
@@ -32,24 +32,24 @@ COURSES = [
         'title': 'Python 程式設計 — Level 1 補救版',
         'description': '適合對程式執行流程感到困惑、概念尚未建立的同學。非常詳細說明＋流程圖＋完整程式碼＋逐行中文注解，認知負荷低，逐步引導。',
         'difficulty': 'beginner',
-        'md_file': 'Python教材_Level1_補救版.md',
+        'md_file': 'level1.md',
     },
     {
         'title': 'Python 程式設計 — Level 2 標準版',
         'description': '適合理解基礎概念、需要熟練語法與實際應用的同學。說明與練習並重，部分程式需自行補全。',
         'difficulty': 'intermediate',
-        'md_file': 'Python教材_Level2_標準版.md',
+        'md_file': 'level2.md',
     },
     {
         'title': 'Python 程式設計 — Level 3 進階版',
         'description': '適合語法熟練、準備提升問題解決與設計思維的同學。精簡說明，幾乎由學生獨立設計與撰寫。',
         'difficulty': 'advanced',
-        'md_file': 'Python教材_Level3_進階版.md',
+        'md_file': 'level3.md',
     },
 ]
 
-# ── Level 1 選擇題（10 題 / 單元，純基礎概念確認）───────────────────────
-QUIZ_QUESTIONS = [
+# ── 舊版題庫（只供歷史參考；實際使用 curriculum_questions.py）────────────
+LEGACY_QUIZ_QUESTIONS = [
     # ── Unit 1: print 輸出 ──────────────────────────────────────────
     [
         {'content': '下面這段程式執行後，螢幕會顯示什麼？\n\n```python\nprint("蘋果")\nprint(3 + 5)\n```',
@@ -355,8 +355,8 @@ class Command(BaseCommand):
         _handle(self, *args, **options)
 
 
-# ── Level 2 填空題（每單元 10 題，測驗與 Level 1 相同的核心概念）──────────
-SHORT_ANSWER_QUESTIONS = [
+# ── 舊版 Level 2 題庫 ────────────────────────────────────────────────
+LEGACY_SHORT_ANSWER_QUESTIONS = [
     # Unit 1: print 輸出
     [
         {'content': '___(\"蘋果\") 讓程式在螢幕上顯示「蘋果」。\n填入函式名稱。', 'correct_answer': 'print', 'explanation': 'print() 是輸出到螢幕的函式。'},
@@ -463,8 +463,8 @@ SHORT_ANSWER_QUESTIONS = [
     ],
 ]
 
-# ── Level 3 程式設計題（每單元 10 題，應用與 Level 1/2 相同的核心概念）────
-CODING_QUESTIONS = [
+# ── 舊版 Level 3 題庫 ────────────────────────────────────────────────
+LEGACY_CODING_QUESTIONS = [
     # Unit 1: print 輸出
     [
         {'content': '撰寫程式，分別用兩個 print() 顯示你的名字和就讀學校，各自一行。', 'correct_answer': '', 'explanation': '每個 print() 執行後自動換行，兩個 print() 產生兩行輸出。'},
@@ -571,6 +571,13 @@ CODING_QUESTIONS = [
     ],
 ]
 
+# 新版四日課程題庫獨立維護，舊陣列僅保留供歷史版本查閱。
+from .curriculum_questions import (  # noqa: E402
+    CODING_QUESTIONS,
+    QUIZ_QUESTIONS,
+    SHORT_ANSWER_QUESTIONS,
+)
+
 def _handle(self, *args, **options):
     self.stdout.write('開始建立教材資料...')
 
@@ -627,9 +634,19 @@ def _handle(self, *args, **options):
                     'duration_minutes': 30,
                 }
             )
-            if not l_created and lesson.content != content:
-                lesson.content = content
-                lesson.save()
+            if not l_created:
+                changed_fields = []
+                if lesson.title != unit_title:
+                    lesson.title = unit_title
+                    changed_fields.append('title')
+                if lesson.content != content:
+                    lesson.content = content
+                    changed_fields.append('content')
+                if lesson.duration_minutes != 180:
+                    lesson.duration_minutes = 180
+                    changed_fields.append('duration_minutes')
+                if changed_fields:
+                    lesson.save(update_fields=changed_fields)
 
             l_status = '新建' if l_created else '已存在'
             self.stdout.write(f'    [{l_status}] 單元 {order}：{unit_title}')
@@ -643,8 +660,12 @@ def _handle(self, *args, **options):
                     'pass_score': 60.0,
                 }
             )
+            expected_quiz_title = f'Unit {order} 形成性評量 — {unit_title}'
+            if not q_created and quiz.title != expected_quiz_title:
+                quiz.title = expected_quiz_title
+                quiz.save(update_fields=['title'])
 
-            if q_created and order - 1 < len(QUIZ_QUESTIONS):
+            if order - 1 < len(QUIZ_QUESTIONS):
                 difficulty = course_data['difficulty']
                 if difficulty == 'beginner':
                     questions_bank = QUIZ_QUESTIONS[order - 1]
@@ -656,23 +677,32 @@ def _handle(self, *args, **options):
                     questions_bank = CODING_QUESTIONS[order - 1]
                     q_type = 'coding'
 
-                for q_idx, q_data in enumerate(questions_bank, start=1):
-                    question = Question.objects.create(
-                        quiz=quiz,
-                        content=q_data['content'],
-                        question_type=q_type,
-                        correct_answer=q_data.get('correct_answer', ''),
-                        points=10.0,
-                        order=q_idx,
-                        explanation=q_data.get('explanation', ''),
-                    )
-                    if q_type == 'multiple_choice':
-                        for choice_text, is_correct in q_data['choices']:
-                            Choice.objects.create(
-                                question=question,
-                                content=choice_text,
-                                is_correct=is_correct,
-                            )
-                self.stdout.write(f'      建立評量：{quiz.title}（{len(questions_bank)} 題，{q_type}）')
+                # 沒有作答紀錄時可安全同步新版題庫；已有研究資料則保留原題目。
+                if q_created or not quiz.attempts.exists():
+                    if not q_created:
+                        quiz.questions.all().delete()
+                    points_per_question = 100.0 / len(questions_bank)
+                    for q_idx, q_data in enumerate(questions_bank, start=1):
+                        question = Question.objects.create(
+                            quiz=quiz,
+                            content=q_data['content'],
+                            question_type=q_type,
+                            correct_answer=q_data.get('correct_answer', ''),
+                            points=points_per_question,
+                            order=q_idx,
+                            explanation=q_data.get('explanation', ''),
+                        )
+                        if q_type == 'multiple_choice':
+                            for choice_text, is_correct in q_data['choices']:
+                                Choice.objects.create(
+                                    question=question,
+                                    content=choice_text,
+                                    is_correct=is_correct,
+                                )
+                    self.stdout.write(f'      同步評量：{quiz.title}（{len(questions_bank)} 題，{q_type}）')
+                else:
+                    self.stdout.write(self.style.WARNING(
+                        f'      保留既有評量：{quiz.title}（已有作答紀錄）'
+                    ))
 
     self.stdout.write(self.style.SUCCESS('\n[OK] 教材資料建立完成！'))

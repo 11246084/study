@@ -9,8 +9,8 @@ class LearningProgressSerializer(serializers.ModelSerializer):
     class Meta:
         model = LearningProgress
         fields = ('id', 'lesson', 'lesson_title', 'course_title',
-                  'status', 'time_spent', 'last_accessed', 'completed_at')
-        read_only_fields = ('last_accessed',)
+                  'status', 'time_spent', 'time_spent_seconds', 'last_accessed', 'completed_at')
+        read_only_fields = ('time_spent', 'time_spent_seconds', 'last_accessed')
 
 
 class RecommendationSerializer(serializers.ModelSerializer):

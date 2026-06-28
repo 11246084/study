@@ -1,3 +1,4 @@
+from django.db import transaction
 from django.db.models import Exists, F, Max, OuterRef
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -92,20 +93,28 @@ class ActivityPingView(views.APIView):
         try:
             seconds = int(request.data.get('seconds') or 0)
         except (TypeError, ValueError):
-            seconds = 0
+            return response.Response({'detail': 'seconds 必須是整數。'}, status=status.HTTP_400_BAD_REQUEST)
+        if seconds < 0 or seconds > 1800:
+            return response.Response(
+                {'detail': '單次活動時間必須介於 0 與 1800 秒。'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         lesson = get_object_or_404(Lesson, pk=lesson_id)
 
-        progress, created = LearningProgress.objects.get_or_create(
-            student=request.user, lesson=lesson,
-        )
-        # 載入即計一次瀏覽（seconds=0）；之後 ping 累計時數
-        if seconds <= 0:
-            progress.visit_count = F('visit_count') + 1
-        else:
-            progress.time_spent = F('time_spent') + seconds // 60
-        if progress.status == 'not_started':
-            progress.status = 'in_progress'
-        progress.save()
+        with transaction.atomic():
+            progress, _ = LearningProgress.objects.get_or_create(
+                student=request.user, lesson=lesson,
+            )
+            progress = LearningProgress.objects.select_for_update().get(pk=progress.pk)
+            # 載入即計一次瀏覽（seconds=0）；之後 ping 累計時數
+            if seconds == 0:
+                progress.visit_count += 1
+            else:
+                progress.time_spent_seconds += seconds
+                progress.time_spent = progress.time_spent_seconds // 60
+            if progress.status == 'not_started':
+                progress.status = 'in_progress'
+            progress.save()
         return response.Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -133,14 +142,14 @@ class SessionHeartbeatView(views.APIView):
 
 
 UNIT_TITLES = [
-    'print 輸出',
-    'input 輸入與運算',
-    'if 條件判斷',
-    '多條件 if',
-    'list 串列',
-    'range 數列',
-    'for 迴圈',
-    '迴圈應用',
+    '環境、變數、資料型態與 I/O',
+    '條件判斷 If／Elif／Else',
+    'For／While 與基礎演算法',
+    '迴圈實作與基礎題庫',
+    'List 與 String 進階操作',
+    '串列與字串實戰題庫',
+    '函式與模組化',
+    '遞迴與 Dictionary 應用',
 ]
 
 LEVEL_TO_DIFFICULTY = {1: 'beginner', 2: 'intermediate', 3: 'advanced'}

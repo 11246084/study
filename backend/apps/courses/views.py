@@ -1,6 +1,8 @@
 from rest_framework import generics, permissions
+from rest_framework.exceptions import PermissionDenied
 from .models import Course, Lesson, Enrollment
 from .serializers import CourseSerializer, CourseDetailSerializer, EnrollmentSerializer, LessonDetailSerializer
+from .access import can_access_lesson
 
 
 class CourseListView(generics.ListAPIView):
@@ -35,3 +37,9 @@ class LessonDetailView(generics.RetrieveAPIView):
     queryset = Lesson.objects.all()
     serializer_class = LessonDetailSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_object(self):
+        lesson = super().get_object()
+        if not can_access_lesson(self.request, lesson):
+            raise PermissionDenied('請先完成前一單元評量。')
+        return lesson

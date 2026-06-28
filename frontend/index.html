@@ -350,7 +350,7 @@
         banner.className = 'admin-debug-banner';
         banner.innerHTML = `
           <span class="badge">👁 Admin Preview</span>
-          <span class="text">目前以 <strong>${profile ? profile.username : '—'}</strong> 學生身分預覽，含 Level 等級資訊（學生本人看不到此區塊與 Level 角章）</span>
+          <span class="text">目前以 <strong>${escapeHtml(profile ? profile.username : '—')}</strong> 學生身分預覽，含 Level 等級資訊（學生本人看不到此區塊與 Level 角章）</span>
         `;
         overview.insertBefore(banner, overview.firstChild);
       }
@@ -372,7 +372,7 @@
         const isLocked = u.status === 'locked';
         const levelHeader = canSeeLevels ? `
           <div style="background:${levelColors[u.current_level]};padding:10px 16px;border-radius:var(--radius-md) var(--radius-md) 0 0;font-size:0.72rem;font-weight:800">
-            ${u.level_name}
+            ${escapeHtml(u.level_name)}
           </div>` : '';
         const levelSwitcher = (canSeeLevels && u.last_score != null && u.all_levels) ? `
           <div style="display:flex;gap:4px;margin-top:10px">
@@ -396,7 +396,7 @@
             ${levelHeader}
             <div class="card-body">
               <div style="font-size:0.75rem;color:#aaa;font-weight:700">Unit ${u.unit_number}</div>
-              <div class="card-title" style="margin:4px 0 8px">${u.unit_title}</div>
+              <div class="card-title" style="margin:4px 0 8px">${escapeHtml(u.unit_title)}</div>
               <div style="font-size:0.8rem;font-weight:700;color:${statusColor[u.status]};margin-bottom:12px">
                 ${statusLabel[u.status]}
                 ${u.last_score ? `· ${Math.round(u.last_score)} 分` : ''}
@@ -424,8 +424,8 @@
           <div class="card" style="margin-bottom:12px">
             <div class="card-body" style="display:flex;justify-content:space-between;align-items:center">
               <div>
-                <div class="card-title" style="margin-bottom:4px">${r.lesson_title}</div>
-                <div class="card-desc">${canSeeLevels ? r.reason : '根據最近一次評量，建議前往這個單元繼續學習。'}</div>
+                <div class="card-title" style="margin-bottom:4px">${escapeHtml(r.lesson_title)}</div>
+                <div class="card-desc">${escapeHtml(canSeeLevels ? r.reason : '根據最近一次評量，建議前往這個單元繼續學習。')}</div>
               </div>
               <a href="lesson.html?lesson_id=${r.lesson_id}" data-rec-id="${r.id}" class="btn btn-lime rec-link" style="flex-shrink:0">前往學習 →</a>
             </div>

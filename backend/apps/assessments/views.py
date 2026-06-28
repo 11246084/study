@@ -1,19 +1,43 @@
 from django.utils import timezone
+from django.db import transaction
 from django.db.models import Exists, OuterRef
+from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions, views, response, status
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from .models import Quiz, QuizAttempt, Answer, Question, Choice
 from .serializers import QuizSerializer, AttemptSubmitSerializer, QuizAttemptSerializer
 from apps.courses.models import Course, Lesson
+from apps.courses.access import can_access_lesson
 
 DIFFICULTY_TO_LEVEL = {'beginner': 1, 'intermediate': 2, 'advanced': 3}
 LEVEL_TO_DIFFICULTY = {1: 'beginner', 2: 'intermediate', 3: 'advanced'}
 LEVEL_NAMES = {1: 'Level 1 補救版', 2: 'Level 2 標準版', 3: 'Level 3 進階版'}
+ANSWER_SEPARATOR = '\n---OR---\n'
+
+
+def accepted_answers(raw_answer):
+    """Return one or more accepted answers while preserving exact code spacing."""
+    normalized = (raw_answer or '').replace('\r\n', '\n').replace('\r', '\n')
+    if not normalized:
+        return []
+    return normalized.split(ANSWER_SEPARATOR)
+
+
+def normalize_code_answer(value):
+    """Ignore whitespace and letter case when comparing submitted code."""
+    return ''.join((value or '').split()).casefold()
 
 
 class QuizDetailView(generics.RetrieveAPIView):
     queryset = Quiz.objects.all()
     serializer_class = QuizSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_object(self):
+        quiz = super().get_object()
+        if not can_access_lesson(self.request, quiz.lesson):
+            raise PermissionDenied('請先完成前一單元評量。')
+        return quiz
 
 
 class SubmitAttemptView(views.APIView):
@@ -23,46 +47,83 @@ class SubmitAttemptView(views.APIView):
         serializer = AttemptSubmitSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        quiz = Quiz.objects.get(pk=serializer.validated_data['quiz_id'])
-        attempt = QuizAttempt.objects.create(student=request.user, quiz=quiz)
+        quiz = get_object_or_404(
+            Quiz.objects.prefetch_related('questions__choices').select_related('lesson'),
+            pk=serializer.validated_data['quiz_id'],
+        )
+        if not can_access_lesson(request, quiz.lesson):
+            raise PermissionDenied('請先完成前一單元評量。')
+
+        submitted_answers = serializer.validated_data['answers']
+        submitted_ids = [answer['question_id'] for answer in submitted_answers]
+        if len(submitted_ids) != len(set(submitted_ids)):
+            raise ValidationError({'answers': '每一題只能提交一次。'})
+
+        questions = {question.id: question for question in quiz.questions.all()}
+        if set(submitted_ids) != set(questions):
+            raise ValidationError({'answers': '答案必須完整且只能包含此評量的題目。'})
 
         total_score = 0
-        for ans_data in serializer.validated_data['answers']:
-            question = Question.objects.get(pk=ans_data['question_id'])
-            is_correct = False
-            points_earned = 0
+        maximum_score = sum(question.points for question in questions.values())
+        missing_coding_answers = [
+            question.id
+            for question in questions.values()
+            if question.question_type == 'coding' and not accepted_answers(question.correct_answer)
+        ]
+        if missing_coding_answers:
+            raise ValidationError({
+                'quiz_id': '此評量尚有程式題未設定標準答案，請通知教師補充後再作答。',
+            })
 
-            if question.question_type == 'multiple_choice':
-                correct = question.choices.filter(is_correct=True).first()
-                if correct and str(correct.id) == ans_data['student_answer']:
-                    is_correct = True
-                    points_earned = question.points
-            elif question.question_type == 'short_answer':
-                student_ans = ans_data['student_answer'].strip().lower()
-                correct_ans = question.correct_answer.strip().lower()
-                if student_ans and student_ans == correct_ans:
-                    is_correct = True
-                    points_earned = question.points
-            elif question.question_type == 'coding':
-                if ans_data['student_answer'].strip():
-                    is_correct = True
-                    points_earned = question.points
+        with transaction.atomic():
+            attempt = QuizAttempt.objects.create(student=request.user, quiz=quiz)
+            for ans_data in submitted_answers:
+                question = questions[ans_data['question_id']]
+                student_answer = ans_data['student_answer']
+                is_correct = False
+                points_earned = 0
 
-            Answer.objects.create(
-                attempt=attempt,
-                question=question,
-                student_answer=ans_data['student_answer'],
-                is_correct=is_correct,
-                points_earned=points_earned,
-            )
-            total_score += points_earned
+                if question.question_type == 'multiple_choice':
+                    correct = question.choices.filter(is_correct=True).first()
+                    if correct and str(correct.id) == student_answer:
+                        is_correct = True
+                        points_earned = question.points
+                elif question.question_type in {'short_answer', 'true_false'}:
+                    normalized_answer = student_answer.strip().casefold()
+                    possible_answers = {
+                        answer.strip().casefold()
+                        for answer in accepted_answers(question.correct_answer)
+                        if answer.strip()
+                    }
+                    if normalized_answer and normalized_answer in possible_answers:
+                        is_correct = True
+                        points_earned = question.points
+                elif question.question_type == 'coding':
+                    normalized_code = normalize_code_answer(student_answer)
+                    possible_answers = {
+                        normalize_code_answer(answer)
+                        for answer in accepted_answers(question.correct_answer)
+                    }
+                    if normalized_code in possible_answers:
+                        is_correct = True
+                        points_earned = question.points
 
-        attempt.score = total_score
-        attempt.is_passed = total_score >= quiz.pass_score
-        attempt.completed_at = timezone.now()
-        attempt.save()
+                Answer.objects.create(
+                    attempt=attempt,
+                    question=question,
+                    student_answer=student_answer,
+                    is_correct=is_correct,
+                    points_earned=points_earned,
+                )
+                total_score += points_earned
 
-        next_lesson_data = self._run_adaptive_logic(request.user, quiz, total_score)
+            score_percent = round(total_score / maximum_score * 100, 2) if maximum_score else 0
+            attempt.score = score_percent
+            attempt.is_passed = score_percent >= quiz.pass_score
+            attempt.completed_at = timezone.now()
+            attempt.save()
+
+            next_lesson_data = self._run_adaptive_logic(request.user, quiz, score_percent)
 
         result = QuizAttemptSerializer(attempt).data
         result['next_lesson'] = next_lesson_data
@@ -217,7 +278,10 @@ class LessonQuizListView(generics.ListAPIView):
 
     def get_queryset(self):
         lesson_id = self.kwargs['lesson_id']
-        return Quiz.objects.filter(lesson_id=lesson_id)
+        lesson = get_object_or_404(Lesson, pk=lesson_id)
+        if not can_access_lesson(self.request, lesson):
+            raise PermissionDenied('請先完成前一單元評量。')
+        return Quiz.objects.filter(lesson=lesson)
 
 
 class AttemptDetailView(generics.RetrieveAPIView):
