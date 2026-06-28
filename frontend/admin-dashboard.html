@@ -206,14 +206,14 @@
               <span class="v">${r.rate === null ? '—' : r.rate}<span class="pct">%</span></span>
             </div>`).join('')}</div>`;
       const alerts = (d.rows || []).filter(r => r.alert);
-      return card('wide-4', 'RQ-03 · UNIT DIFFICULTY', 'cls', '班級',
+      return card('wide-4', 'RQ-03 · 單元難度', 'cls', '班級',
         '單元難度與瓶頸', '逐單元平均答對率，低於 60% 視為概念斷層。', body,
         alerts.length ? `<b>瓶頸單元：</b>${alerts.map(a => `U${a.unit}`).join('、')}，建議補強鷹架與試題分析。` : '目前無低於 60% 的瓶頸單元。');
     }
 
     // ── A. 軌跡分群（awaiting）─────────────────────────────────
     function renderClustering(d) {
-      return card('wide-8', 'RQ-01 · TRAJECTORY CLUSTERING', 'both', '班級 → 個人',
+      return card('wide-8', 'RQ-01 · 學習軌跡分群', 'both', '班級 → 個人',
         '學習軌跡分群', '將各生八單元精熟度疊加後做 k-means 分群，識別成長型／困難型／不穩定型。',
         awaiting(d.note, '每生各單元 level（AdaptiveLearningPath）'),
         '需 <span class="kw">scikit-learn</span> 分群與足夠樣本數；原料已在累積，待 N 足夠即可離線跑分群。');
@@ -230,7 +230,7 @@
              <td class="quote"><span class="wrong">✗</span>「${esc(r.text)}」</td>
              <td class="bar"><div><div style="width:${Math.round(r.count / max * 100)}%"></div></div></td>
              <td class="freq">${r.count} / ${r.total}</td></tr>`).join('')}</tbody></table>`;
-      return card('wide-7', 'RQ-02 · MISCONCEPTION MINING', 'cls', '班級',
+      return card('wide-7', 'RQ-02 · 迷思概念萃取', 'cls', '班級',
         '常見迷思概念', '從簡答題錯誤答案萃取共同錯誤書寫，依出現次數排序。', body,
         '此為真實作答資料，可直接用於論文「常見迷思」章節與教材補強建議。');
     }
@@ -270,7 +270,7 @@
       const foot = d.status === 'ready'
         ? `共 <b>${d.n_pairs}</b> 組重測；第二次平均 ${d.avg_second} 分，較第一次 <b>${(d.avg_second - d.avg_first).toFixed(1)}</b> 分。`
         : '形成性評量已允許多次提交，重做後第 1／2 次分數會自動在此比較。';
-      return card('wide-5', 'RQ-07 · FORMATIVE RETAKE', 'both', '班級 + 個人',
+      return card('wide-5', 'RQ-07 · 形成性重測效果', 'both', '班級 + 個人',
         '形成性評量重測效果', '比較同一評量第 1 次與第 2 次作答的平均分數。', body, foot);
     }
 
@@ -280,7 +280,7 @@
         ? awaiting('尚無推薦點擊紀錄；學生點擊推薦卡後即開始累積接受度資料。', '推薦點擊（is_clicked / clicked_at）')
         : `<div style="font-family:var(--mono);font-size:34px;margin:6px 0 4px">${d.click_rate}<small style="font-size:16px;color:var(--muted)">%</small></div>
            <div style="font-size:13px;color:var(--muted)">${d.clicked} / ${d.total} 張推薦卡被點擊 · 忽略 ${d.ignored}</div>`;
-      return card('wide-6', 'RQ-04 · RECOMMENDATION UPTAKE', 'cls', '班級',
+      return card('wide-6', 'RQ-04 · 推薦接受度', 'cls', '班級',
         '推薦接受度', '比較有點擊推薦卡與忽略的學生後續表現差異。', body,
         '本次已新增 <span class="kw">is_clicked</span>／<span class="kw">clicked_at</span> 欄位，點擊資料從現在開始記錄。');
     }
@@ -300,7 +300,7 @@
           <text x="245" y="198" text-anchor="middle" class="axis-label">線上總時數 (h)</text>
         </svg>`;
       }
-      return card('wide-6', 'RQ-05 · ENGAGEMENT × PERFORMANCE', 'cls', '班級',
+      return card('wide-6', 'RQ-05 · 投入度 × 學習成效', 'cls', '班級',
         '學習時間與分數關係', '投入時間過少或過多（仍掙扎）皆可能低分，呈現 U 型。', body,
         '本次已埋點 <span class="kw">time_spent</span>／<span class="kw">visit_count</span>／<span class="kw">login_count</span> 作為投入度代理變數。');
     }
@@ -323,7 +323,7 @@
           ${d.high_list && d.high_list.length ? `<div class="risk-list">${d.high_list.map(s => `
             <div class="risk-item"><span>${esc(s.username)}</span><span class="s">前三單元 ${s.score} 分</span></div>`).join('')}</div>` : ''}`;
       }
-      return card('wide-7', 'RQ-06 · EARLY WARNING', 'both', '班級 → 個人',
+      return card('wide-7', 'RQ-06 · 早期預警', 'both', '班級 → 個人',
         '早期預警（規則式初版）', '以前三單元平均分標記風險：<60 高、60–75 中、>75 低。', body,
         '此為規則式初版；累積足夠樣本後可升級為 <span class="kw">邏輯斯迴歸</span> 模型（特徵重要性、ACC/AUC）。');
     }
@@ -337,7 +337,7 @@
             <div class="bar"><div style="width:${r.avg ?? 0}%;background:var(--blue)"></div></div>
             <span class="v">${num(r.avg)}<span class="pct">分</span></span></div>`).join('')}
             ${d.missing ? `<div style="font-size:11.5px;color:var(--muted);margin-top:4px">尚有 ${d.missing} 位未填性別</div>` : ''}</div>`;
-      return card('wide-5', 'RQ-08 · SUBGROUP ANALYSIS', 'cls', '班級',
+      return card('wide-5', 'RQ-08 · 子群分析', 'cls', '班級',
         '性別差異', '資訊教育研究經典子題；本次已於註冊頁新增性別欄位。', body,
         '本次已新增 <span class="kw">User.gender</span>，新註冊學生會自動帶入，既有帳號可於資料管理補填。');
     }
@@ -370,7 +370,7 @@
              </div></td>
              <td>${deltaBadge(s)}</td></tr>`).join('')}</tbody></table>
            <div class="legend"><div class="item"><span class="sw" style="background:var(--muted-2)"></span>前測</div><div class="item"><span class="sw" style="background:var(--green)"></span>後測</div></div>`;
-      return card('wide-7', 'RQ-09 · PRE/POST QUESTIONNAIRE', 'cls', '班級',
+      return card('wide-7', 'RQ-09 · 前後測問卷', 'cls', '班級',
         '六大構念 · 前後測變化', '動機／焦慮／自我學習傾向／批判思考傾向／解決問題傾向／系統可行性，配對前後測。', body,
         d.status === 'ready'
           ? '焦慮、無動機為「分數越低越好」，已自動依方向判定變好／退步；可於外部統計工具做配對樣本 t 檢定。'
@@ -409,7 +409,7 @@
             <text x="245" y="${179}" text-anchor="middle" class="axis-label">每週使用時長（分鐘）</text>
           </svg>`;
       }
-      return card('wide-6', 'RQ-05 · USAGE TIME', 'both', '班級 + 個人',
+      return card('wide-6', 'RQ-05 · 使用時間與次數', 'both', '班級 + 個人',
         '使用時間與次數', '每週使用次數／時長、每次平均使用長度（以 30 分鐘間隔切分時段）。', body,
         '心跳每 2 分鐘記錄一次，距上次活動超過 30 分鐘視為新的一段使用。');
     }
@@ -432,7 +432,7 @@
             <div class="bar"><div style="width:${u.rate ?? 0}%;background:var(--blue)"></div></div>
             <span class="v">${num(u.rate)}<span class="pct">%</span></span></div>`).join('')}</div>` : ''}`;
       }
-      return card('wide-5', 'RQ · PROBLEM SOLVING', 'both', '班級 + 個人',
+      return card('wide-5', 'RQ · 解決問題能力', 'both', '班級 + 個人',
         '解決問題能力', '以建構型題目（簡答＋程式）作答表現衡量。', body,
         '簡答題為自動比對答對率；程式題提交即計，教師另行複閱品質。');
     }

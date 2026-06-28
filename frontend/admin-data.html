@@ -185,6 +185,26 @@
       survey_scales: '問卷構念', survey_scores: '問卷成績',
     };
 
+    const COL_ZH = {
+      id: '編號', username: '使用者名稱', email: '電子郵件', role: '角色',
+      student_id: '學號', gender: '性別', is_active: '啟用中', date_joined: '加入日期',
+      title: '標題', teacher: '教師', difficulty: '難度', created_at: '建立時間',
+      updated_at: '更新時間', course: '課程', lesson: '單元', lesson_type: '單元類型',
+      order: '順序', duration_minutes: '時長（分）', student: '學生', progress: '進度',
+      enrolled_at: '選課時間', quiz: '評量', quiz_type: '評量類型', pass_score: '及格分數',
+      question_type: '題型', content: '內容', points: '配分', score: '分數',
+      is_passed: '是否通過', started_at: '開始時間', completed_at: '完成時間',
+      unit_number: '單元號', current_level: '目前等級', last_score: '最近分數',
+      recommended_lesson: '推薦單元', reason: '原因', is_dismissed: '已關閉',
+      status: '狀態', time_spent: '學習時長（分）', last_accessed: '最後存取',
+      quiz_score_avg: '平均分數', proficiency: '精熟度', recorded_at: '記錄時間',
+      name: '名稱', group: '群組', key: '代碼', higher_is_better: '高分較好',
+      post_only: '僅後測', phase: '階段', is_clicked: '已點擊', clicked_at: '點擊時間',
+      student_answer: '作答內容', is_correct: '是否正確', login_count: '登入次數',
+      visit_count: '瀏覽次數', time_spent_seconds: '學習秒數', correct_answer: '正確答案',
+    };
+    const colLabel = name => COL_ZH[name] || name;
+
     function valueText(value) {
       if (value && typeof value === 'object' && 'label' in value) return value.label;
       if (value === true) return '是';
@@ -362,7 +382,7 @@
       document.getElementById('count-label').textContent = `${state.data.count} 筆資料`;
       renderFilters();
       document.getElementById('table-head').innerHTML = `
-        ${state.data.columns.map(col => `<th>${escapeHtml(col.name)}</th>`).join('')}
+        ${state.data.columns.map(col => `<th>${escapeHtml(colLabel(col.name))}</th>`).join('')}
         <th>操作</th>
       `;
       const body = document.getElementById('table-body');
@@ -413,7 +433,7 @@
       document.getElementById('drawer-title').textContent = create ? `新增 ${state.data.title}` : `編輯 ${state.data.title}`;
       document.getElementById('form-fields').innerHTML = fields.map(field => `
         <div class="field">
-          <label>${escapeHtml(field.name)}</label>
+          <label>${escapeHtml(colLabel(field.name))}</label>
           ${fieldControl(field, state.editing || {})}
         </div>
       `).join('');
