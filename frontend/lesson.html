@@ -277,8 +277,20 @@
         const quizData = await quizRes.json();
         const quizzes = quizData.results || quizData;
         if (quizzes.length > 0) {
+          const currentQuizId = quizzes[0].id;
           document.getElementById('quiz-banner').style.display = 'flex';
-          document.getElementById('quiz-link').href = `quiz.html?quiz_id=${quizzes[0].id}&lesson_id=${lessonId}${EMBEDDED_SFX}`;
+          document.getElementById('quiz-link').href = `quiz.html?quiz_id=${currentQuizId}&lesson_id=${lessonId}${EMBEDDED_SFX}`;
+
+          // 學生必須先完成本單元評量，才顯示「下一單元」按鈕
+          if (!canBrowseAll) {
+            const attRes = await apiFetch('/assessments/my-attempts/');
+            const attBody = attRes && attRes.ok ? await attRes.json() : {};
+            const attempts = attBody.results || [];
+            const hasAttempt = attempts.some(a => a.quiz === currentQuizId || a.quiz?.id === currentQuizId);
+            if (!hasAttempt) {
+              document.getElementById('next-btn').style.display = 'none';
+            }
+          }
         }
       }
     }
