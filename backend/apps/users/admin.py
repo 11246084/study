@@ -26,7 +26,7 @@ class CustomUserAdmin(UserAdmin):
     ordering = ('role', 'username')
     list_editable = ('is_active',)
     fieldsets = UserAdmin.fieldsets + (
-        ('額外資訊', {'fields': ('role', 'student_id', 'avatar', 'bio')}),
+        ('額外資訊', {'fields': ('role', 'student_id', 'avatar')}),
     )
     actions = [
         'delete_student_all_data',
