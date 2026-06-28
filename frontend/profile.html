@@ -120,11 +120,6 @@
                 <label class="form-label">學號</label>
                 <input class="form-input" type="text" id="edit-student-id" placeholder="學號" />
               </div>
-              <div class="form-group">
-                <label class="form-label">自我介紹</label>
-                <textarea class="form-input" id="edit-bio" rows="4"
-                  placeholder="簡單介紹一下自己..." style="resize:vertical"></textarea>
-              </div>
               <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center">
                 儲存變更
               </button>
@@ -154,13 +149,6 @@
 
       </div>
 
-      <!-- 學習統計 -->
-      <div style="margin-top:32px">
-        <div class="profile-card" style="max-width:100%">
-          <div class="profile-section-title">我的自我介紹</div>
-          <p id="display-bio" style="color:#555;font-size:0.95rem;line-height:1.7">—</p>
-        </div>
-      </div>
 
       <!-- 我的學習成長報表 -->
       <div style="margin-top:32px" id="growth-wrap">
@@ -216,7 +204,6 @@
       document.getElementById('info-username').textContent = profile.username;
       document.getElementById('info-student-id').textContent = profile.student_id || '未設定';
       document.getElementById('info-role').textContent = roleMap[profile.role] || profile.role;
-      document.getElementById('display-bio').textContent = profile.bio || '尚未填寫自我介紹';
 
       // 填入編輯表單
       document.getElementById('edit-email').value = profile.email || '';
