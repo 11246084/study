@@ -1,16 +1,20 @@
 /* ===== Design System (Professional Levi 風格) ===== */
 :root {
-  --color-black:   #0D0D0D;
-  --color-white:   #FFFFFF;
-  --color-lime:    #C5F135;
-  --color-gray:    #F5F5F5;
-  --color-gray-md: #AAAAAA;
-  --color-border:  #E0E0E0;
+  --color-black:     #0D0D0D;
+  --color-white:     #FFFFFF;
+  --color-lime:      #C5F135;
+  --color-lime-dark: #B5E02A;
+  --color-gray:      #F5F5F5;
+  --color-gray-md:   #AAAAAA;
+  --color-border:    #E0E0E0;
   --font-main: 'Inter', 'Noto Sans TC', sans-serif;
   --radius-sm: 8px;
   --radius-md: 16px;
   --radius-lg: 24px;
-  --shadow: 0 4px 24px rgba(0,0,0,0.08);
+  --shadow:    0 4px 24px rgba(0,0,0,0.08);
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.10);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.13);
+  --ease:      cubic-bezier(0.4,0,0.2,1);
 }
 
 /* ===== Reset ===== */
@@ -54,10 +58,12 @@ img { max-width: 100%; display: block; }
   font-size: 0.95rem;
   font-weight: 500;
   color: var(--color-black);
-  transition: color 0.2s;
+  padding: 6px 14px;
+  border-radius: 20px;
+  transition: color 0.2s var(--ease), background 0.2s var(--ease);
 }
 .navbar-links a:hover,
-.navbar-links a.active { color: var(--color-lime); background: var(--color-black); padding: 4px 12px; border-radius: 20px; }
+.navbar-links a.active { color: var(--color-lime); background: var(--color-black); }
 .navbar-right { display: flex; align-items: center; gap: 12px; }
 .btn-nav {
   padding: 8px 20px;
@@ -66,12 +72,13 @@ img { max-width: 100%; display: block; }
   font-weight: 600;
   cursor: pointer;
   border: none;
-  transition: all 0.2s;
+  transition: background 0.2s var(--ease), color 0.2s var(--ease), transform 0.1s var(--ease);
 }
 .btn-nav.outline { border: 2px solid var(--color-black); background: transparent; }
 .btn-nav.solid   { background: var(--color-black); color: var(--color-white); }
-.btn-nav.solid:hover { background: var(--color-lime); color: var(--color-black); }
+.btn-nav.solid:hover   { background: var(--color-lime); color: var(--color-black); }
 .btn-nav.outline:hover { background: var(--color-black); color: var(--color-white); }
+.btn-nav:active { transform: scale(0.97); }
 
 /* ===== Buttons ===== */
 .btn {
@@ -84,15 +91,17 @@ img { max-width: 100%; display: block; }
   font-weight: 600;
   cursor: pointer;
   border: none;
-  transition: all 0.2s;
+  transition: background 0.2s var(--ease), color 0.2s var(--ease), transform 0.15s var(--ease), box-shadow 0.2s var(--ease);
   text-decoration: none;
 }
 .btn-primary { background: var(--color-black); color: var(--color-white); }
-.btn-primary:hover { background: var(--color-lime); color: var(--color-black); }
+.btn-primary:hover { background: var(--color-lime); color: var(--color-black); transform: translateY(-2px); box-shadow: var(--shadow-sm); }
 .btn-lime    { background: var(--color-lime); color: var(--color-black); }
-.btn-lime:hover { filter: brightness(0.9); }
+.btn-lime:hover { background: var(--color-lime-dark); transform: translateY(-2px); box-shadow: var(--shadow-sm); }
 .btn-outline { background: transparent; border: 2px solid var(--color-black); color: var(--color-black); }
-.btn-outline:hover { background: var(--color-black); color: var(--color-white); }
+.btn-outline:hover { background: var(--color-black); color: var(--color-white); transform: translateY(-2px); box-shadow: var(--shadow-sm); }
+.btn:active { transform: translateY(0) scale(0.98); box-shadow: none; }
+.btn:disabled, .btn[disabled] { opacity: .4; cursor: not-allowed; transform: none; box-shadow: none; }
 
 /* ===== Hero ===== */
 .hero {
@@ -155,9 +164,9 @@ img { max-width: 100%; display: block; }
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   overflow: hidden;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease), border-color 0.2s var(--ease);
 }
-.card:hover { transform: translateY(-4px); box-shadow: var(--shadow); }
+.card:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); border-color: #ccc; }
 .card-img { width: 100%; height: 180px; object-fit: cover; background: var(--color-gray); }
 .card-body { padding: 20px; }
 .card-tag {
@@ -204,7 +213,8 @@ img { max-width: 100%; display: block; }
   outline: none;
   transition: border-color 0.2s;
 }
-.form-input:focus { border-color: var(--color-black); }
+.form-input:focus { border-color: var(--color-black); box-shadow: 0 0 0 3px rgba(13,13,13,0.08); }
+.form-input::placeholder { color: var(--color-gray-md); }
 .form-error { font-size: 0.8rem; color: #e53e3e; margin-top: 4px; display: none; }
 .form-footer { text-align: center; margin-top: 20px; font-size: 0.9rem; color: #666; }
 .form-footer a { font-weight: 600; color: var(--color-black); }
@@ -300,4 +310,64 @@ img { max-width: 100%; display: block; }
   .dashboard-layout { grid-template-columns: 1fr; }
   .sidebar { display: none; }
   .main-content { padding: 24px; }
+  .form-card { margin: 32px 16px; padding: 28px 20px; }
+  .quiz-banner, .stats-row { gap: 10px; }
+}
+
+/* ===== UI/UX Polish ===== */
+
+/* 全站鍵盤焦點環 */
+:focus-visible {
+  outline: 2px solid var(--color-black);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+.sidebar :focus-visible { outline-color: var(--color-lime); }
+
+/* 品牌選取色 */
+::selection { background: var(--color-lime); color: var(--color-black); }
+
+/* input/textarea/select 柔焦點環 */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--color-black);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(13,13,13,0.07);
+}
+
+/* 骨架載入 */
+.skeleton {
+  background: linear-gradient(90deg, #ebebeb 25%, #f5f5f5 50%, #ebebeb 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+  border-radius: var(--radius-sm);
+}
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* 旋轉載入 */
+.spinner {
+  width: 24px; height: 24px;
+  border: 3px solid var(--color-border);
+  border-top-color: var(--color-black);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  display: inline-block;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* 深色側欄捲軸 */
+.sidebar { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.15) transparent; }
+.sidebar::-webkit-scrollbar { width: 4px; }
+.sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
+
+/* 錨點捲動偏移（避免被 sticky navbar 遮住） */
+[id] { scroll-margin-top: 88px; }
+
+/* 降低動畫（無障礙） */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
