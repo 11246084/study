@@ -296,25 +296,9 @@
         ${metric('解題答對率', p.short_answer_accuracy, '%', p.class_short_answer_accuracy != null ? `班級 ${p.class_short_answer_accuracy}%` : '')}
       </div>`;
 
-      let qHtml;
-      if (q.status !== 'ready') {
-        qHtml = '<p style="color:#888;font-size:.88rem">問卷成績尚未登錄，老師完成前/後測登錄後這裡會顯示你的六大構念變化。</p>';
-      } else {
-        qHtml = `<div style="overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:.88rem">
-          <thead><tr style="text-align:left;color:#888;font-size:.76rem">
-            <th style="padding:8px 10px">構念</th><th style="padding:8px 10px">前測</th><th style="padding:8px 10px">後測</th><th style="padding:8px 10px">變化</th></tr></thead>
-          <tbody>${q.scales.map(s => `<tr style="border-top:1px solid #eee">
-            <td style="padding:8px 10px;font-weight:700">${escapeHtml(s.group ? s.group + '·' : '')}${escapeHtml(s.name)}${s.higher_is_better ? '' : ' <span style="color:#999;font-size:.7rem">(越低越好)</span>'}</td>
-            <td style="padding:8px 10px">${numv(s.pre)}</td>
-            <td style="padding:8px 10px">${numv(s.post)}</td>
-            <td style="padding:8px 10px">${growthDelta(s)}</td></tr>`).join('')}</tbody></table></div>`;
-      }
-
       box.innerHTML = `
         <div style="font-size:.82rem;font-weight:800;color:#666;margin-bottom:10px">學習成效與使用情形</div>
-        ${effHtml}
-        <div style="font-size:.82rem;font-weight:800;color:#666;margin:20px 0 10px">六大構念（前測 → 後測）</div>
-        ${qHtml}`;
+        ${effHtml}`;
     }
 
     loadProfile();
