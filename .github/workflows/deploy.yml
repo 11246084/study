@@ -1,0 +1,30 @@
+name: Deploy to VM
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Pull latest code
+        run: |
+          cd /opt/study
+          git pull origin main
+
+      - name: Install backend dependencies
+        run: |
+          cd /opt/study/backend
+          /opt/study/venv/bin/pip install -r requirements.txt
+
+      - name: Run migrations
+        run: |
+          cd /opt/study/backend
+          /opt/study/venv/bin/python manage.py migrate
+          /opt/study/venv/bin/python manage.py collectstatic --noinput
+
+      - name: Restart services
+        run: |
+          sudo systemctl restart gunicorn
+          sudo systemctl reload nginx
