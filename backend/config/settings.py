@@ -132,6 +132,7 @@ USE_TZ = False  # MySQL 未灌時區表，關閉 UTC 轉換，統一以本地時
 X_FRAME_OPTIONS = 'SAMEORIGIN'
 
 STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
