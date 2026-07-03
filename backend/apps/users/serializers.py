@@ -3,31 +3,12 @@ from django.contrib.auth.password_validation import validate_password
 from .models import User
 
 
-class RegisterSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, validators=[validate_password])
-    password2 = serializers.CharField(write_only=True)
-
-    class Meta:
-        model = User
-        fields = ('username', 'email', 'password', 'password2', 'role', 'student_id', 'gender')
-        read_only_fields = ('role',)
-        extra_kwargs = {'gender': {'required': False}}
-
-    def validate(self, attrs):
-        if attrs['password'] != attrs['password2']:
-            raise serializers.ValidationError({'password': '兩次密碼不一致'})
-        return attrs
-
-    def create(self, validated_data):
-        validated_data.pop('password2')
-        validated_data['role'] = 'student'
-        return User.objects.create_user(**validated_data)
-
-
 class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'role', 'student_id', 'gender', 'avatar')
+        fields = ('id', 'username', 'email', 'role', 'student_id', 'gender',
+                  'school_short_name', 'school_name', 'preferred_programming_language',
+                  'must_change_password')
         read_only_fields = ('id', 'username', 'role')
 
 
@@ -50,5 +31,6 @@ class ChangePasswordSerializer(serializers.Serializer):
     def save(self, **kwargs):
         user = self.context['request'].user
         user.set_password(self.validated_data['new_password'])
-        user.save(update_fields=['password'])
+        user.must_change_password = False
+        user.save(update_fields=['password', 'must_change_password'])
         return user

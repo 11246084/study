@@ -2,7 +2,10 @@
 
 
 def can_access_lesson(request, lesson) -> bool:
-    """Return whether the authenticated request may open a lesson or its quiz."""
+    """Return whether the authenticated request may open a lesson or its quiz.
+
+    單元是否開放由老師手動控制（UnitRelease），不再依前一單元作答自動解鎖。
+    """
     user = request.user
     if not user or not user.is_authenticated:
         return False
@@ -15,13 +18,9 @@ def can_access_lesson(request, lesson) -> bool:
     ):
         return True
 
-    if lesson.order <= 1:
-        return True
+    if not lesson.course.is_active:
+        return False
 
-    from apps.assessments.models import QuizAttempt
+    from apps.learning.models import UnitRelease
 
-    return QuizAttempt.objects.filter(
-        student=user,
-        quiz__lesson__order=lesson.order - 1,
-        completed_at__isnull=False,
-    ).exists()
+    return UnitRelease.objects.filter(unit_number=lesson.order, is_open=True).exists()

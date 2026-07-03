@@ -126,6 +126,9 @@
             </form>
 
             <div class="profile-section-title" style="margin-top:32px">修改密碼</div>
+            <div id="force-password-notice" style="display:none;margin:0 0 16px;padding:12px 14px;border-radius:8px;background:#fff3cd;color:#7a5600;font-weight:700">
+              目前使用的是電話初始密碼，請先設定新的個人密碼。
+            </div>
             <form id="password-form">
               <div class="form-group">
                 <label class="form-label">目前密碼</label>
@@ -262,6 +265,11 @@
       }
     });
 
+    if (new URLSearchParams(location.search).get('force_password_change') === '1') {
+      document.getElementById('force-password-notice').style.display = 'block';
+      document.getElementById('old-password').focus();
+    }
+
     // === 我的學習成長報表 ===
     const numv = (v, d = '—') => (v === null || v === undefined) ? d : v;
     function growthDelta(s) {
@@ -280,7 +288,6 @@
       const e = d.effectiveness || {};
       const u = d.usage || {};
       const p = d.problem_solving || {};
-      const q = d.questionnaire || {};
 
       const cardCss = 'background:#faf9f5;border:1px solid #ececE4;border-radius:12px;padding:16px';
       const metric = (label, val, unit, extra = '') =>

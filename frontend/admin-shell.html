@@ -89,11 +89,13 @@
     .data-panel,
     .analytics-panel {
       display: none;
+      flex: 1;
+      flex-direction: column;
       min-height: 0;
       margin-bottom: 14px;
     }
-    .data-mode .data-panel { display: block; }
-    .analytics-mode .analytics-panel { display: block; }
+    .data-mode .data-panel { display: flex; }
+    .analytics-mode .analytics-panel { display: flex; }
     .data-panel-head {
       display: flex;
       align-items: center;
@@ -130,12 +132,25 @@
     }
     .data-models {
       display: grid;
+      grid-auto-rows: max-content;
       gap: 10px;
-      max-height: calc(100vh - 310px);
+      align-content: start;
+      flex: 1;
+      min-height: 0;
       overflow-y: auto;
       padding-right: 4px;
       margin-right: -4px;
+      scrollbar-width: thin;
+      scrollbar-color: #4a4a4a transparent;
+      overscroll-behavior: contain;
     }
+    .data-models::-webkit-scrollbar { width: 7px; }
+    .data-models::-webkit-scrollbar-track { background: transparent; }
+    .data-models::-webkit-scrollbar-thumb {
+      background: #4a4a4a;
+      border-radius: 999px;
+    }
+    .data-models::-webkit-scrollbar-thumb:hover { background: #686868; }
     .data-group {
       border: 1px solid #222;
       border-radius: 14px;
@@ -264,6 +279,7 @@
     .shell-account {
       margin-top: auto;
       padding-top: 18px;
+      flex-shrink: 0;
     }
     .account-card {
       border: 1px solid #2a2a2a;
@@ -492,8 +508,7 @@
       { id: 'behavior', icon: 'A', title: '學習行為', sub: '走過八個單元' },
       { id: 'concept', icon: 'B', title: '概念與評量', sub: '卡點 / 重做 / 解題' },
       { id: 'intervention', icon: 'C', title: '系統介入與使用', sub: '推薦 / 投入 / 使用時間' },
-      { id: 'psych', icon: 'D', title: '子群與心理變項', sub: '性別 / 六大構念前後測' },
-      { id: 'individual', icon: 'E', title: '個人層級', sub: '單一學生個案' },
+      { id: 'individual', icon: 'D', title: '個人層級', sub: '單一學生個案' },
     ];
 
     const DATA_GROUPS = [
@@ -509,45 +524,44 @@
       {
         id: 'courses',
         icon: 'C',
-        title: '課程',
-        sub: '課程、單元、選課',
+        title: '課程內容',
+        sub: '課程、單元、評量、題目',
         models: [
-          { id: 'courses', icon: 'C', title: '課程', sub: 'Level 與課程資料', url: '/admin/courses/course/' },
+          { id: 'courses', icon: 'C', title: '課程', sub: '3 個 Level', url: '/admin/courses/course/' },
           { id: 'lessons', icon: 'L', title: '單元', sub: '教材內容與順序', url: '/admin/courses/lesson/' },
-          { id: 'enrollments', icon: 'E', title: '選課紀錄', sub: '學生與課程關聯', url: '/admin/courses/enrollment/' },
-        ],
-      },
-      {
-        id: 'assessments',
-        icon: 'Q',
-        title: '評量',
-        sub: '測驗、題目、作答',
-        models: [
           { id: 'quizzes', icon: 'Q', title: '評量', sub: '測驗與題目', url: '/admin/assessments/quiz/' },
           { id: 'questions', icon: '?', title: '題目', sub: '題型、答案、分數', url: '/admin/assessments/question/' },
-          { id: 'attempts', icon: 'A', title: '作答紀錄', sub: '分數與答案', url: '/admin/assessments/quizattempt/' },
         ],
       },
       {
         id: 'learning',
         icon: 'P',
-        title: '學習',
-        sub: '路徑、推薦、進度',
+        title: '學習狀態',
+        sub: '老師日常看這區',
         models: [
+          { id: 'unit_summaries', icon: 'S', title: '學生單元彙總', sub: '一列＝一生×一單元', url: '/admin/learning/studentunitsummary/' },
+          { id: 'attempts', icon: 'A', title: '作答紀錄', sub: '分數與答案', url: '/admin/assessments/quizattempt/' },
           { id: 'adaptive', icon: 'P', title: '適性路徑', sub: 'Unit 與 Level', url: '/admin/learning/adaptivelearningpath/' },
           { id: 'recommendations', icon: 'R', title: '推薦紀錄', sub: '補強與進階', url: '/admin/learning/adaptiverecommendation/' },
-          { id: 'progress', icon: 'G', title: '學習進度', sub: '單元完成狀態', url: '/admin/learning/learningprogress/' },
-          { id: 'performance', icon: 'F', title: '學習表現', sub: '課程表現紀錄', url: '/admin/learning/performancerecord/' },
+          { id: 'progress', icon: 'G', title: '學習進度', sub: '教材閱讀狀態', url: '/admin/learning/learningprogress/' },
         ],
       },
       {
-        id: 'surveys',
-        icon: 'S',
-        title: '問卷',
-        sub: '構念與前後測成績',
+        id: 'research_raw',
+        icon: 'V',
+        title: '研究原始資料（唯讀）',
+        sub: '供匯出與統計，不供瀏覽',
         models: [
-          { id: 'survey_scores', icon: '#', title: '問卷成績', sub: '前後測分數登錄 / 匯入', url: '/admin/surveys/surveyscore/' },
-          { id: 'survey_scales', icon: 'S', title: '問卷構念', sub: '六大構念定義', url: '/admin/surveys/surveyscale/' },
+          { id: 'student_events', icon: 'V', title: '事件流水帳', sub: '完整頁面與操作事件', url: '/admin/learning/studentevent/' },
+          { id: 'question_interactions', icon: 'I', title: '逐題互動', sub: '停留與答案修改', url: '/admin/assessments/questioninteraction/' },
+          { id: 'study_sessions', icon: 'T', title: '使用時段', sub: '開始、結束與活動時間', url: '/admin/learning/studysession/' },
+        ],
+      },
+      {
+        id: 'audit', icon: 'A', title: '稽核', sub: '登入與安全事件',
+        models: [
+          { id: 'login_events', icon: 'L', title: '登入事件', sub: '成功、失敗與登出', url: '/admin/users/loginevent/' },
+          { id: 'data_audits', icon: 'H', title: '異動稽核', sub: '修改前後值與操作者', url: '/admin/users/datachangeaudit/' },
         ],
       },
     ];
@@ -633,7 +647,8 @@
         const isOpen = openDataGroup === group.id;
         return `
           <section class="data-group ${isOpen ? 'open' : ''}">
-            <button class="data-group-toggle" type="button" data-group="${group.id}">
+            <button class="data-group-toggle" type="button" data-group="${group.id}"
+                    aria-expanded="${isOpen}" aria-controls="data-group-${group.id}">
               <span class="data-group-icon">${group.icon}</span>
               <span class="data-group-text">
                 <span class="data-group-title">${group.title}</span>
@@ -641,7 +656,7 @@
               </span>
               <span class="data-group-arrow">›</span>
             </button>
-            <div class="data-group-items">
+            <div class="data-group-items" id="data-group-${group.id}">
               ${group.models.map(model => `
                 <button class="data-model-btn ${model.id === activeDataModel ? 'active' : ''}" type="button" data-model="${model.id}">
                   <span class="data-model-icon">${model.icon}</span>
@@ -659,7 +674,7 @@
 
       dataModels.querySelectorAll('[data-group]').forEach(button => {
         button.addEventListener('click', () => {
-          openDataGroup = button.dataset.group;
+          openDataGroup = openDataGroup === button.dataset.group ? null : button.dataset.group;
           renderDataModels();
         });
       });

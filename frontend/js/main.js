@@ -34,8 +34,7 @@ function initNavbar() {
       `;
     } else {
       navRight.innerHTML = `
-        <a href="/login.html" class="btn-nav outline">登入</a>
-        <a href="/register.html" class="btn-nav solid">註冊</a>
+        <a href="/login.html" class="btn-nav solid">登入</a>
       `;
     }
   }
@@ -43,8 +42,8 @@ function initNavbar() {
 
 // ===== 全站 footer：整個系統累計登入次數 =====
 async function renderSystemFooter() {
-  // 登入 / 註冊頁不顯示 footer
-  if (/\/(login|register)\.html$/.test(window.location.pathname)) return;
+  // 登入頁不顯示 footer
+  if (/\/login\.html$/.test(window.location.pathname)) return;
   // iframe 內嵌頁（admin-shell 載入）不重複顯示，footer 由外層 shell 呈現
   const params = new URLSearchParams(window.location.search);
   if (params.get('embedded') === '1') return;
@@ -74,6 +73,13 @@ async function renderSystemFooter() {
 document.addEventListener('DOMContentLoaded', () => {
   initNavbar();
   renderSystemFooter();
+  if (isLoggedIn() && typeof LearningAPI !== 'undefined') {
+    LearningAPI.recordEvent('page_view');
+  }
+});
+
+window.addEventListener('pagehide', () => {
+  if (typeof LearningAPI !== 'undefined') LearningAPI.recordEvent('page_close');
 });
 
 // ===== 使用時段心跳（RQ-05 使用時間/次數）=====

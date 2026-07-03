@@ -1,12 +1,12 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import Course, Lesson, Enrollment
+from .models import Course, Lesson
 
 
 class LessonInline(admin.TabularInline):
     model = Lesson
     extra = 0
-    fields = ('order', 'title', 'lesson_type', 'duration_minutes')
+    fields = ('order', 'title', 'duration_minutes')
     ordering = ('order',)
     show_change_link = True
 
@@ -52,8 +52,8 @@ class CourseAdmin(admin.ModelAdmin):
 
 @admin.register(Lesson)
 class LessonAdmin(admin.ModelAdmin):
-    list_display = ('order', 'title', 'course_difficulty', 'course', 'lesson_type', 'duration_minutes')
-    list_filter = ('lesson_type', 'course__difficulty')
+    list_display = ('order', 'title', 'course_difficulty', 'course', 'duration_minutes')
+    list_filter = ('course__difficulty',)
     search_fields = ('title', 'course__title')
     ordering = ('course__difficulty', 'order')
 
@@ -61,17 +61,3 @@ class LessonAdmin(admin.ModelAdmin):
     def course_difficulty(self, obj):
         labels = {'beginner': 'L1', 'intermediate': 'L2', 'advanced': 'L3'}
         return labels.get(obj.course.difficulty, '?')
-
-
-@admin.register(Enrollment)
-class EnrollmentAdmin(admin.ModelAdmin):
-    list_display = ('student', 'course', 'enrolled_at', 'progress')
-    list_filter = ('course__difficulty',)
-    search_fields = ('student__username', 'course__title')
-    actions = ['delete_selected_enrollments']
-
-    @admin.action(description='🗑 刪除選取的選課記錄')
-    def delete_selected_enrollments(self, request, queryset):
-        count = queryset.count()
-        queryset.delete()
-        self.message_user(request, f'已刪除 {count} 筆選課記錄。')

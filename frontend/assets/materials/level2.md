@@ -16,7 +16,9 @@
 
 ## Unit 1｜環境、變數、資料型態與 I/O
 
-### 學習目標
+### 共同學習目標（與 Level 1、Level 3 相同）
+
+> 以下是三個級別共同的 Unit 1 學習目標；本版採標準課本敘述與練習。
 
 - 能執行第一支 Python 程式並理解錯誤訊息的位置。
 - 能正確命名變數，使用算術運算子與型態轉換。
@@ -60,7 +62,7 @@ print(f"共 {quantity} 件，總價 {total} 元")
 
 ## Unit 2｜條件判斷 If／Elif／Else
 
-### 學習目標
+### 共同學習目標（與 Level 1、Level 3 相同）
 
 - 使用關係運算子與 `and`、`or`、`not` 組合條件。
 - 使用 `if / elif / else` 表達互斥規則。
@@ -100,7 +102,7 @@ else:
 
 ## Unit 3｜For／While 與基礎演算法
 
-### 學習目標
+### 共同學習目標（與 Level 1、Level 3 相同）
 
 - 分辨已知次數的 `for` 與未知次數的 `while`。
 - 使用 `range(start, stop, step)`。
@@ -151,7 +153,7 @@ print(total, count, maximum)
 
 ## Unit 4｜迴圈實作與基礎題庫
 
-### 學習目標
+### 共同學習目標（與 Level 1、Level 3 相同）
 
 - 將題目拆成初始化、重複處理、更新與輸出。
 - 使用巢狀迴圈處理表格與圖形。
@@ -192,7 +194,7 @@ print("質數" if is_prime else "不是質數")
 
 ## Unit 5｜List 與 String 進階操作
 
-### 學習目標
+### 共同學習目標（與 Level 1、Level 3 相同）
 
 - 使用索引、負索引與切片讀寫串列。
 - 使用 `append`、`insert`、`pop`、`remove`、`sort`。
@@ -234,7 +236,7 @@ latitude, longitude = point
 
 ## Unit 6｜串列與字串實戰題庫
 
-### 學習目標
+### 共同學習目標（與 Level 1、Level 3 相同）
 
 - 將原始字串清理後轉換成可分析的串列。
 - 使用迴圈完成搜尋、統計、排序與分組。
@@ -267,7 +269,7 @@ print(f"最高：{max(scores)}，最低：{min(scores)}")
 
 ## Unit 7｜函式與模組化
 
-### 學習目標
+### 共同學習目標（與 Level 1、Level 3 相同）
 
 - 使用 `def`、參數與 `return` 封裝重複邏輯。
 - 理解區域變數、預設參數與關鍵字參數。
@@ -307,7 +309,7 @@ def bmi_level(bmi):
 
 ## Unit 8｜遞迴與 Dictionary 應用
 
-### 學習目標
+### 共同學習目標（與 Level 1、Level 3 相同）
 
 - 理解遞迴的終止條件與遞迴步驟。
 - 使用字典的鍵值結構增刪查改。

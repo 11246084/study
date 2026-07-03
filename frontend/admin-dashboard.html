@@ -163,8 +163,36 @@
   </main>
 
   <script src="js/api.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script>
     const IS_EMBEDDED = new URLSearchParams(window.location.search).get('embedded') === '1';
+
+    // ── Chart.js 掛載機制：render 函式先回傳 <canvas>，innerHTML 寫入後再實例化 ──
+    const CHART_COLORS = {
+      ink: '#1a1814', blue: '#2b5fa8', red: '#b6432e', green: '#4a7c54',
+      amber: '#b07a16', muted: '#b5ad9b', grid: '#E7E3DA', text: '#8a8478',
+    };
+    let pendingCharts = [];
+    let liveCharts = [];
+    function chartBox(id, height = 240) {
+      return `<div style="position:relative;height:${height}px"><canvas id="${id}"></canvas></div>`;
+    }
+    function queueChart(id, config) { pendingCharts.push({ id, config }); }
+    function mountCharts() {
+      liveCharts.forEach(c => c.destroy());
+      liveCharts = [];
+      pendingCharts.forEach(({ id, config }) => {
+        const el = document.getElementById(id);
+        if (el) liveCharts.push(new Chart(el, config));
+      });
+      pendingCharts = [];
+    }
+    const AXIS = (title, max) => ({
+      beginAtZero: true, max,
+      ticks: { color: CHART_COLORS.text, font: { size: 11, family: 'Roboto Mono' } },
+      grid: { color: CHART_COLORS.grid },
+      title: title ? { display: true, text: title, color: CHART_COLORS.text, font: { size: 11 } } : undefined,
+    });
 
     // 直接以非 embedded、最上層開啟 → 導回管理外殼（保留左側導覽列）
     if (!IS_EMBEDDED && window.self === window.top) {
@@ -197,42 +225,173 @@
 
     // ── A. 單元難度 ────────────────────────────────────────────
     function renderUnitDifficulty(d) {
-      const body = d.status !== 'ready'
-        ? awaiting('尚無作答資料，學生開始作答後即顯示各單元答對率。', '答對率（Answer.is_correct）')
-        : `<div class="ulist">${d.rows.map(r => `
-            <div class="row ${r.alert ? 'alert' : ''}">
-              <span class="u" title="${esc(r.title)}">U${r.unit} ${esc(r.title)}</span>
-              <div class="bar"><div style="width:${r.rate ?? 0}%"></div></div>
-              <span class="v">${r.rate === null ? '—' : r.rate}<span class="pct">%</span></span>
-            </div>`).join('')}</div>`;
+      let body;
+      if (d.status !== 'ready') {
+        body = awaiting('尚無作答資料，學生開始作答後即顯示各單元答對率。', '答對率（Answer.is_correct）');
+      } else {
+        body = chartBox('chart-difficulty', 260);
+        queueChart('chart-difficulty', {
+          type: 'bar',
+          data: {
+            labels: d.rows.map(r => `U${r.unit}`),
+            datasets: [{
+              label: '答對率 %',
+              data: d.rows.map(r => r.rate),
+              backgroundColor: d.rows.map(r => r.alert ? CHART_COLORS.red : CHART_COLORS.blue),
+              borderRadius: 4,
+            }],
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            scales: { y: AXIS('答對率（%）', 100), x: AXIS() },
+            plugins: {
+              legend: { display: false },
+              tooltip: { callbacks: { title: items => {
+                const r = d.rows[items[0].dataIndex];
+                return `U${r.unit} ${r.title}（n=${r.samples}）`;
+              } } },
+            },
+          },
+        });
+        body += `<div class="legend">
+          <div class="item"><span class="sw" style="background:${CHART_COLORS.blue}"></span>正常</div>
+          <div class="item"><span class="sw" style="background:${CHART_COLORS.red}"></span>低於 60%（瓶頸）</div>
+        </div>`;
+      }
       const alerts = (d.rows || []).filter(r => r.alert);
       return card('wide-4', 'RQ-03 · 單元難度', 'cls', '班級',
         '單元難度與瓶頸', '逐單元平均答對率，低於 60% 視為概念斷層。', body,
         alerts.length ? `<b>瓶頸單元：</b>${alerts.map(a => `U${a.unit}`).join('、')}，建議補強鷹架與試題分析。` : '目前無低於 60% 的瓶頸單元。');
     }
 
-    // ── A. 軌跡分群（awaiting）─────────────────────────────────
-    function renderClustering(d) {
-      return card('wide-8', 'RQ-01 · 學習軌跡分群', 'both', '班級 → 個人',
-        '學習軌跡分群', '將各生八單元精熟度疊加後做 k-means 分群，識別成長型／困難型／不穩定型。',
-        awaiting(d.note, '每生各單元 level（AdaptiveLearningPath）'),
-        '需 <span class="kw">scikit-learn</span> 分群與足夠樣本數；原料已在累積，待 N 足夠即可離線跑分群。');
+    // ── A. Level 轉移統計 ──────────────────────────────────────
+    function renderLevelFlow(d) {
+      let body;
+      if (d.status !== 'ready') {
+        body = awaiting(d.note || '尚無適性路徑資料。', '每生各單元 level（AdaptiveLearningPath）');
+      } else {
+        body = chartBox('chart-levelflow', 260);
+        queueChart('chart-levelflow', {
+          type: 'bar',
+          data: {
+            labels: d.dist.map(r => `U${r.unit}`),
+            datasets: [
+              { label: 'Level 1 補救', data: d.dist.map(r => r.l1),
+                backgroundColor: CHART_COLORS.red, borderRadius: 3 },
+              { label: 'Level 2 標準', data: d.dist.map(r => r.l2),
+                backgroundColor: CHART_COLORS.blue, borderRadius: 3 },
+              { label: 'Level 3 進階', data: d.dist.map(r => r.l3),
+                backgroundColor: CHART_COLORS.green, borderRadius: 3 },
+            ],
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            scales: { x: { stacked: true, ...AXIS() }, y: { stacked: true, ...AXIS('人數') } },
+            plugins: {
+              legend: { position: 'bottom', labels: { color: CHART_COLORS.text, font: { size: 11 } } },
+              tooltip: { callbacks: { title: items => {
+                const r = d.dist[items[0].dataIndex];
+                return `U${r.unit} ${r.title}`;
+              } } },
+            },
+          },
+        });
+      }
+      const foot = d.status === 'ready'
+        ? `相鄰單元的等級變化：升級 <b>${d.up}</b> 人次、降級 <b>${d.down}</b> 人次、持平 <b>${d.same}</b> 人次——適性分流實際發生的直接證據。`
+        : '交卷後系統自動指定下一單元等級（≥80 升、<60 降、其餘持平），資料會自動累積。';
+      return card('wide-8', 'RQ-01 · 適性分流', 'cls', '班級',
+        'Level 轉移統計', '各單元 Level 1/2/3 人數分布（堆疊），呈現全班等級如何隨單元演變。', body, foot);
     }
 
-    // ── B. 迷思概念 ────────────────────────────────────────────
+    // ── A. 學習曲線 ────────────────────────────────────────────
+    function renderLearningCurve(d) {
+      let body;
+      if (d.status !== 'ready') {
+        body = awaiting('尚無完成的作答；學生交卷後顯示各單元平均分走勢。', '完成作答分數（QuizAttempt.score）');
+      } else {
+        body = chartBox('chart-curve', 220);
+        queueChart('chart-curve', {
+          type: 'line',
+          data: {
+            labels: d.rows.map(r => `U${r.unit}`),
+            datasets: [{ label: '班級平均分', data: d.rows.map(r => r.avg),
+                         borderColor: CHART_COLORS.ink, backgroundColor: CHART_COLORS.ink,
+                         spanGaps: true, pointRadius: 4, tension: 0.25 }],
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            scales: { y: AXIS('平均分', 100), x: AXIS() },
+            plugins: {
+              legend: { display: false },
+              tooltip: { callbacks: { title: items => {
+                const r = d.rows[items[0].dataIndex];
+                return `U${r.unit} ${r.title}（n=${r.n}）`;
+              } } },
+            },
+          },
+        });
+      }
+      return card('wide-12', 'RQ-03 · 學習曲線', 'cls', '班級',
+        '學習曲線', '各單元完成作答的班級平均分，呈現四天課程的分數走勢。', body,
+        '單元順序即課程時序（每半天一單元）；建議搭配上方 Level 轉移圖一起解讀。');
+    }
+
+    // ── B. 作答時長與放棄率 ────────────────────────────────────
+    function renderAttemptEffort(d) {
+      let body;
+      if (d.status !== 'ready') {
+        body = awaiting('尚無作答紀錄；學生開始測驗後顯示作答時長與放棄率。', '作答起訖／放棄時間（QuizAttempt）');
+      } else {
+        body = chartBox('chart-effort', 240);
+        queueChart('chart-effort', {
+          data: {
+            labels: d.rows.map(r => `U${r.unit}`),
+            datasets: [
+              { type: 'bar', label: '平均作答時間（分）', data: d.rows.map(r => r.avg_minutes),
+                backgroundColor: CHART_COLORS.blue, borderRadius: 3, yAxisID: 'y' },
+              { type: 'line', label: '放棄率 %', data: d.rows.map(r => r.abandon_rate),
+                borderColor: CHART_COLORS.red, backgroundColor: CHART_COLORS.red,
+                spanGaps: true, pointRadius: 4, yAxisID: 'y1' },
+            ],
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            scales: {
+              y: AXIS('分鐘'),
+              y1: { ...AXIS('放棄率（%）', 100), position: 'right', grid: { drawOnChartArea: false } },
+              x: AXIS(),
+            },
+            plugins: { legend: { position: 'bottom', labels: { color: CHART_COLORS.text, font: { size: 11 } } } },
+          },
+        });
+      }
+      const worst = (d.rows || []).filter(r => (r.abandon_rate || 0) >= 30);
+      return card('wide-7', 'RQ · 測驗負荷', 'cls', '班級',
+        '作答時長與放棄率', '長條為各單元平均作答時間（排除超過 180 分鐘的掛機紀錄）；紅線為放棄率。', body,
+        worst.length
+          ? `<b>放棄率偏高：</b>${worst.map(r => `U${r.unit}`).join('、')}，題量或難度可能偏高。`
+          : '放棄率＝放棄次數／（完成＋放棄）；作答時間可作為測驗負荷的代理變數。');
+    }
+
+    // ── B. 迷思概念（三題型）───────────────────────────────────
+    const QTYPE_LABEL = { multiple_choice: '選擇', short_answer: '簡答', fill_blank: '填空' };
+    function qtypeTag(qtype) {
+      return `<span class="tag info" style="margin-right:6px">${QTYPE_LABEL[qtype] || qtype}</span>`;
+    }
     function renderMisconceptions(d) {
       const max = Math.max(1, ...(d.rows || []).map(r => r.count));
       const body = d.status !== 'ready'
-        ? awaiting('尚無簡答題錯誤資料；中級簡答題作答後自動萃取常見錯誤敘述。', '簡答錯誤原文（Answer.student_answer）')
-        : `<table class="misc"><thead><tr><th>單元</th><th>學生常見錯誤敘述</th><th class="bar">出現率</th><th class="freq">n</th></tr></thead>
+        ? awaiting('尚無錯誤作答資料；學生作答後自動萃取選擇題誘答、簡答錯誤與填空逐格錯誤。', '錯誤作答（Answer.student_answer）')
+        : `<table class="misc"><thead><tr><th>單元</th><th>學生常見錯誤</th><th class="bar">答錯人數比</th><th class="freq">n</th></tr></thead>
            <tbody>${d.rows.map(r => `<tr>
              <td class="unit">U${r.unit} ${esc(r.title)}</td>
-             <td class="quote"><span class="wrong">✗</span>「${esc(r.text)}」</td>
+             <td class="quote">${qtypeTag(r.qtype)}<span class="wrong">✗</span>「${esc(r.text)}」</td>
              <td class="bar"><div><div style="width:${Math.round(r.count / max * 100)}%"></div></div></td>
              <td class="freq">${r.count} / ${r.total}</td></tr>`).join('')}</tbody></table>`;
       return card('wide-7', 'RQ-02 · 迷思概念萃取', 'cls', '班級',
-        '常見迷思概念', '從簡答題錯誤答案萃取共同錯誤書寫，依出現次數排序。', body,
-        '此為真實作答資料，可直接用於論文「常見迷思」章節與教材補強建議。');
+        '常見迷思概念', '整合三等級題型：選擇題誘答選項、簡答錯誤敘述、填空逐格錯誤，依答錯人數排序。', body,
+        'n＝答錯的不重複人數／該單元作答過該題型的人數。可直接用於論文「常見迷思」章節與教材補強建議。');
     }
 
     // ── B. 重測效果 ────────────────────────────────────────────
@@ -242,30 +401,24 @@
         body = awaiting('尚無重做紀錄；學生對同一份評量作答第二次後即可比較進步幅度。', '多次作答（QuizAttempt）');
       } else {
         const units = d.units || [];
-        const W = 460, H = 200, base = 180, scale = 1.3;
-        const groupW = units.length ? Math.min(100, (W - 60) / units.length) : 0;
-        let bars = '';
-        units.forEach((u, i) => {
-          const x = 50 + i * groupW;
-          const h1 = u.first * scale, h2 = u.second * scale;
-          bars += `<rect x="${x}" y="${base - h1}" width="18" height="${h1}" fill="var(--muted-2)" rx="2"/>
-                   <rect x="${x + 22}" y="${base - h2}" width="18" height="${h2}" fill="var(--green)" rx="2"/>
-                   <text x="${x + 20}" y="${base + 15}" text-anchor="middle" class="axis-label">U${u.unit}</text>
-                   <text x="${x + 9}" y="${base - h1 - 4}" text-anchor="middle" font-family="var(--mono)" font-size="9" fill="var(--ink)">${u.first}</text>
-                   <text x="${x + 31}" y="${base - h2 - 4}" text-anchor="middle" font-family="var(--mono)" font-size="9" fill="var(--green)">${u.second}</text>`;
+        body = chartBox('chart-retake', 240);
+        queueChart('chart-retake', {
+          type: 'bar',
+          data: {
+            labels: units.map(u => `U${u.unit}`),
+            datasets: [
+              { label: `第 1 次（平均 ${d.avg_first}）`, data: units.map(u => u.first),
+                backgroundColor: CHART_COLORS.muted, borderRadius: 3 },
+              { label: `第 2 次（平均 ${d.avg_second}）`, data: units.map(u => u.second),
+                backgroundColor: CHART_COLORS.green, borderRadius: 3 },
+            ],
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            scales: { y: AXIS('分數', 100), x: AXIS() },
+            plugins: { legend: { position: 'bottom', labels: { color: CHART_COLORS.text, font: { size: 11 } } } },
+          },
         });
-        body = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="200">
-            <line class="grid-line" x1="40" y1="50" x2="${W}" y2="50"/>
-            <line class="grid-line" x1="40" y1="115" x2="${W}" y2="115"/>
-            <line class="grid-line" x1="40" y1="180" x2="${W}" y2="180"/>
-            <text x="34" y="54" text-anchor="end" class="axis-label">100</text>
-            <text x="34" y="119" text-anchor="end" class="axis-label">50</text>
-            ${bars}
-          </svg>
-          <div class="legend">
-            <div class="item"><span class="sw" style="background:var(--muted-2)"></span>第 1 次作答（avg ${d.avg_first}）</div>
-            <div class="item"><span class="sw" style="background:var(--green)"></span>第 2 次作答（avg ${d.avg_second}）</div>
-          </div>`;
       }
       const foot = d.status === 'ready'
         ? `共 <b>${d.n_pairs}</b> 組重測；第二次平均 ${d.avg_second} 分，較第一次 <b>${(d.avg_second - d.avg_first).toFixed(1)}</b> 分。`
@@ -282,7 +435,7 @@
            <div style="font-size:13px;color:var(--muted)">${d.clicked} / ${d.total} 張推薦卡被點擊 · 忽略 ${d.ignored}</div>`;
       return card('wide-6', 'RQ-04 · 推薦接受度', 'cls', '班級',
         '推薦接受度', '比較有點擊推薦卡與忽略的學生後續表現差異。', body,
-        '本次已新增 <span class="kw">is_clicked</span>／<span class="kw">clicked_at</span> 欄位，點擊資料從現在開始記錄。');
+        '以 <span class="kw">click_count</span>／<span class="kw">impression_count</span> 計算：點擊率 = 有點擊的推薦卡 / 全部推薦卡。');
     }
 
     // ── C. 投入度（awaiting）───────────────────────────────────
@@ -291,18 +444,29 @@
       if (d.status !== 'ready') {
         body = awaiting('尚無線上時數資料；學生瀏覽教材後開始累積投入度。', '線上時數 / 教材瀏覽次數 / 登入次數');
       } else {
-        const pts = d.points;
-        const maxH = Math.max(10, ...pts.map(p => p.hours));
-        body = `<svg viewBox="0 0 460 200" width="100%" height="200">
-          <line class="grid-line" x1="40" y1="50" x2="450" y2="50"/>
-          <line class="grid-line" x1="40" y1="125" x2="450" y2="125"/>
-          ${pts.map(p => `<circle cx="${40 + p.hours / maxH * 400}" cy="${180 - p.score * 1.3}" r="4" fill="var(--ink)" opacity="0.7"/>`).join('')}
-          <text x="245" y="198" text-anchor="middle" class="axis-label">線上總時數 (h)</text>
-        </svg>`;
+        body = chartBox('chart-engagement', 240);
+        queueChart('chart-engagement', {
+          type: 'scatter',
+          data: {
+            datasets: [{
+              label: '學生',
+              data: d.points.map(p => ({ x: p.hours, y: p.score })),
+              backgroundColor: CHART_COLORS.blue, pointRadius: 6, pointHoverRadius: 8,
+            }],
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            scales: { x: AXIS('線上總時數（小時）'), y: AXIS('平均分數', 100) },
+            plugins: {
+              legend: { display: false },
+              tooltip: { callbacks: { label: item => `${item.parsed.x} 小時 · ${item.parsed.y} 分` } },
+            },
+          },
+        });
       }
       return card('wide-6', 'RQ-05 · 投入度 × 學習成效', 'cls', '班級',
-        '學習時間與分數關係', '投入時間過少或過多（仍掙扎）皆可能低分，呈現 U 型。', body,
-        '本次已埋點 <span class="kw">time_spent</span>／<span class="kw">visit_count</span>／<span class="kw">login_count</span> 作為投入度代理變數。');
+        '學習時間與分數關係', '每一點是一位學生：橫軸為線上總時數、縱軸為平均分數。', body,
+        '時數以 <span class="kw">StudySession</span> 心跳時段計，與「使用時間」卡同一定義（全儀表板統一）。');
     }
 
     // ── C. 早期預警（規則式）──────────────────────────────────
@@ -328,55 +492,6 @@
         '此為規則式初版；累積足夠樣本後可升級為 <span class="kw">邏輯斯迴歸</span> 模型（特徵重要性、ACC/AUC）。');
     }
 
-    // ── D. 性別差異（awaiting）─────────────────────────────────
-    function renderGender(d) {
-      const body = d.status !== 'ready'
-        ? awaiting(`尚有 ${d.missing} 位學生未填性別；註冊頁已加入性別欄位。`, 'User.gender')
-        : `<div class="ulist">${d.rows.map(r => `
-            <div class="row"><span class="u">${esc(r.label)}（n=${r.n}）</span>
-            <div class="bar"><div style="width:${r.avg ?? 0}%;background:var(--blue)"></div></div>
-            <span class="v">${num(r.avg)}<span class="pct">分</span></span></div>`).join('')}
-            ${d.missing ? `<div style="font-size:11.5px;color:var(--muted);margin-top:4px">尚有 ${d.missing} 位未填性別</div>` : ''}</div>`;
-      return card('wide-5', 'RQ-08 · 子群分析', 'cls', '班級',
-        '性別差異', '資訊教育研究經典子題；本次已於註冊頁新增性別欄位。', body,
-        '本次已新增 <span class="kw">User.gender</span>，新註冊學生會自動帶入，既有帳號可於資料管理補填。');
-    }
-
-    // ── D. 前後測問卷（六大構念）──────────────────────────────
-    function deltaBadge(s) {
-      if (s.delta === null || s.delta === undefined) {
-        return s.post_only ? '<span style="color:var(--muted)">僅後測</span>' : '<span style="color:var(--muted)">—</span>';
-      }
-      const up = s.delta > 0;
-      const cls = s.improved ? 'var(--green)' : (s.improved === false ? '#c0392b' : 'var(--muted)');
-      const txt = s.improved ? '變好' : (s.improved === false ? '退步' : '持平');
-      return `<span style="color:${cls};font-family:var(--mono);font-weight:700">${up ? '▲' : (s.delta < 0 ? '▼' : '◆')} ${s.delta > 0 ? '+' : ''}${s.delta}</span> <span style="color:${cls};font-size:11px">${txt}</span>`;
-    }
-    function ppBar(v, s) {
-      const span = (s.score_max - s.score_min) || 1;
-      return v === null || v === undefined ? 0 : Math.max(0, Math.min(100, (v - s.score_min) / span * 100));
-    }
-    function renderQuestionnaire(d) {
-      const body = d.status !== 'ready'
-        ? awaiting(d.note || '尚未登錄問卷成績。', '問卷成績（SurveyScore，前/後測）')
-        : `<table class="misc"><thead><tr><th>構念</th><th>前測</th><th>後測</th><th class="bar">前→後</th><th>變化</th></tr></thead>
-           <tbody>${d.scales.map(s => `<tr>
-             <td class="unit">${esc(s.group ? s.group + '·' : '')}${esc(s.name)}${s.higher_is_better ? '' : ' <span style="color:var(--muted);font-size:10px">↓佳</span>'}</td>
-             <td style="font-family:var(--mono)">${num(s.pre)}</td>
-             <td style="font-family:var(--mono)">${num(s.post)}</td>
-             <td class="bar"><div style="position:relative;height:12px">
-               <div style="position:absolute;top:1px;height:4px;width:${ppBar(s.pre, s)}%;background:var(--muted-2);border-radius:2px"></div>
-               <div style="position:absolute;top:7px;height:4px;width:${ppBar(s.post, s)}%;background:var(--green);border-radius:2px"></div>
-             </div></td>
-             <td>${deltaBadge(s)}</td></tr>`).join('')}</tbody></table>
-           <div class="legend"><div class="item"><span class="sw" style="background:var(--muted-2)"></span>前測</div><div class="item"><span class="sw" style="background:var(--green)"></span>後測</div></div>`;
-      return card('wide-7', 'RQ-09 · 前後測問卷', 'cls', '班級',
-        '六大構念 · 前後測變化', '動機／焦慮／自我學習傾向／批判思考傾向／解決問題傾向／系統可行性，配對前後測。', body,
-        d.status === 'ready'
-          ? '焦慮、無動機為「分數越低越好」，已自動依方向判定變好／退步；可於外部統計工具做配對樣本 t 檢定。'
-          : '請於左側「問卷成績」分頁登錄前後測分數，或用 CSV 匯入後此處自動呈現。');
-    }
-
     // ── C. 使用時間 / 次數（RQ-05）─────────────────────────────
     function renderUsage(d) {
       let body;
@@ -384,34 +499,58 @@
         body = awaiting(d.note || '尚無使用時段資料。', '使用時段（StudySession 心跳）');
       } else {
         const wk = d.weekly || [];
-        const maxMin = Math.max(1, ...wk.map(w => w.minutes));
-        const maxSes = Math.max(1, ...wk.map(w => w.sessions));
-        const bw = wk.length ? Math.min(70, 420 / wk.length) : 0;
-        let bars = '';
-        wk.forEach((w, i) => {
-          const x = 46 + i * bw;
-          const h = w.minutes / maxMin * 120;
-          bars += `<rect x="${x}" y="${160 - h}" width="${Math.max(8, bw - 14)}" height="${h}" fill="var(--ink)" opacity="0.78" rx="2"/>
-                   <text x="${x + (bw - 14) / 2}" y="${172}" text-anchor="middle" class="axis-label" font-size="8">${esc(w.week.slice(5))}</text>
-                   <text x="${x + (bw - 14) / 2}" y="${156 - h}" text-anchor="middle" font-family="var(--mono)" font-size="8" fill="var(--ink)">${w.minutes}</text>`;
-        });
         body = `<div class="metric-grid" style="margin-bottom:14px">
             <div class="metric"><div class="ml">每次使用長度</div><div class="mv">${num(d.avg_session_minutes)}<small> 分</small></div></div>
             <div class="metric"><div class="ml">每週使用次數</div><div class="mv">${num(d.avg_sessions_per_active_week)}<small> 次</small></div></div>
             <div class="metric"><div class="ml">每週使用時長</div><div class="mv">${num(d.avg_minutes_per_active_week)}<small> 分</small></div></div>
             <div class="metric"><div class="ml">累計時段</div><div class="mv">${d.sessions_total}<small> 段</small></div></div>
-          </div>
-          <svg viewBox="0 0 470 180" width="100%" height="170">
-            <line class="grid-line" x1="40" y1="40" x2="465" y2="40"/>
-            <line class="grid-line" x1="40" y1="100" x2="465" y2="100"/>
-            <line class="grid-line" x1="40" y1="160" x2="465" y2="160"/>
-            ${bars}
-            <text x="245" y="${179}" text-anchor="middle" class="axis-label">每週使用時長（分鐘）</text>
-          </svg>`;
+          </div>` + chartBox('chart-usage', 200);
+        queueChart('chart-usage', {
+          type: 'bar',
+          data: {
+            labels: wk.map(w => w.week.slice(5)),
+            datasets: [{ label: '每週使用時長（分鐘）', data: wk.map(w => w.minutes),
+                         backgroundColor: CHART_COLORS.ink, borderRadius: 3 }],
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            scales: { y: AXIS('分鐘'), x: AXIS('週') },
+            plugins: { legend: { display: false } },
+          },
+        });
       }
       return card('wide-6', 'RQ-05 · 使用時間與次數', 'both', '班級 + 個人',
         '使用時間與次數', '每週使用次數／時長、每次平均使用長度（以 30 分鐘間隔切分時段）。', body,
         '心跳每 2 分鐘記錄一次，距上次活動超過 30 分鐘視為新的一段使用。');
+    }
+
+    function renderEventAnalytics(d) {
+      let body;
+      if (!d || d.status !== 'ready') {
+        body = awaiting('新的研究事件流水帳尚在累積資料。', '學生事件（StudentEvent）');
+      } else {
+        body = `<div class="metric-grid" style="margin-bottom:14px">
+            <div class="metric"><div class="ml">事件總數</div><div class="mv">${d.total}</div></div>
+            <div class="metric"><div class="ml">有事件學生</div><div class="mv">${d.students}</div></div>
+          </div>` + chartBox('chart-events', Math.max(160, d.by_type.length * 26));
+        queueChart('chart-events', {
+          type: 'bar',
+          data: {
+            labels: d.by_type.map(r => r.event_type),
+            datasets: [{ label: '次數', data: d.by_type.map(r => r.count),
+                         backgroundColor: CHART_COLORS.amber, borderRadius: 3 }],
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true, maintainAspectRatio: false,
+            scales: { x: AXIS('次數'), y: AXIS() },
+            plugins: { legend: { display: false } },
+          },
+        });
+      }
+      return card('wide-6', '研究事件', 'both', '班級 + 個人',
+        '完整操作事件分布', '頁面、教材、測驗、推薦與 Session 的不可變事件紀錄。', body,
+        '原始事件不在管理介面修改或刪除；此圖由事件流水帳即時彙總。');
     }
 
     // ── B. 解題能力（建構型題目）──────────────────────────────
@@ -421,30 +560,42 @@
         body = awaiting(d.note || '尚無建構型題目作答資料。', '簡答／程式題作答（Answer）');
       } else {
         const units = d.by_unit || [];
-        body = `<div style="display:flex;gap:18px;align-items:baseline;margin-bottom:10px">
-            <div><div style="font-family:var(--mono);font-size:32px">${num(d.short_answer_accuracy)}<small style="font-size:15px;color:var(--muted)">%</small></div>
-            <div style="font-size:12px;color:var(--muted)">簡答題答對率（n=${d.short_answer_n}）</div></div>
-            <div style="margin-left:auto;text-align:right"><div style="font-family:var(--mono);font-size:20px">${d.coding_submissions}</div>
-            <div style="font-size:11.5px;color:var(--muted)">程式題提交數</div></div>
-          </div>
-          ${units.length ? `<div class="ulist">${units.map(u => `
-            <div class="row"><span class="u">U${u.unit} ${esc(u.title)}</span>
-            <div class="bar"><div style="width:${u.rate ?? 0}%;background:var(--blue)"></div></div>
-            <span class="v">${num(u.rate)}<span class="pct">%</span></span></div>`).join('')}</div>` : ''}`;
+        body = `<div class="metric-grid" style="margin-bottom:14px">
+            <div class="metric"><div class="ml">簡答題答對率</div>
+              <div class="mv">${num(d.short_answer_accuracy)}<small> %</small></div>
+              <div style="font-size:11px;color:var(--muted)">共作答 ${d.short_answer_n} 題（Level 2）</div></div>
+            <div class="metric"><div class="ml">填空題得分率</div>
+              <div class="mv">${num(d.fill_blank_rate)}<small> %</small></div>
+              <div style="font-size:11px;color:var(--muted)">共作答 ${d.fill_blank_n} 題（Level 3）</div></div>
+          </div>` + (units.length ? chartBox('chart-psolving', 220) : '');
+        if (units.length) {
+          queueChart('chart-psolving', {
+            type: 'bar',
+            data: {
+              labels: units.map(u => `U${u.unit}`),
+              datasets: [{ label: '建構型題目得分率 %', data: units.map(u => u.rate),
+                           backgroundColor: CHART_COLORS.blue, borderRadius: 4 }],
+            },
+            options: {
+              responsive: true, maintainAspectRatio: false,
+              scales: { y: AXIS('得分率（%）', 100), x: AXIS('單元') },
+              plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { title: items => {
+                  const u = units[items[0].dataIndex];
+                  return `U${u.unit} ${u.title}`;
+                } } },
+              },
+            },
+          });
+        }
       }
       return card('wide-5', 'RQ · 解決問題能力', 'both', '班級 + 個人',
-        '解決問題能力', '以建構型題目（簡答＋程式）作答表現衡量。', body,
-        '簡答題為自動比對答對率；程式題提交即計，教師另行複閱品質。');
+        '解決問題能力', '上方兩個數字是班級總覽；下圖為各單元建構型題目（簡答＋填空）的得分率。', body,
+        '簡答（Level 2）為自動比對答對率；程式填空（Level 3）按答對格數比例給分，故以得分率呈現。');
     }
 
     // ── 學生個案用的小區塊 ─────────────────────────────────────
-    function qMini(q) {
-      if (!q || q.status !== 'ready') return awaiting((q && q.note) || '尚未登錄此學生問卷成績。', null);
-      return `<table class="misc" style="font-size:11.5px"><tbody>${q.scales.map(s => `<tr>
-        <td class="unit" style="padding:5px 6px">${esc(s.group ? s.group + '·' : '')}${esc(s.name)}</td>
-        <td style="font-family:var(--mono);padding:5px 6px">${num(s.pre)} → ${num(s.post)}</td>
-        <td style="padding:5px 6px">${deltaBadge(s)}</td></tr>`).join('')}</tbody></table>`;
-    }
     function usageMini(u) {
       if (!u || u.status !== 'ready') return awaiting((u && u.note) || '尚無使用時段資料。', null);
       return `<div class="metric-grid">
@@ -458,11 +609,13 @@
       if (!p || p.status !== 'ready') return awaiting((p && p.note) || '尚無建構型題目作答。', null);
       return `<div style="font-family:var(--mono);font-size:24px">${num(p.short_answer_accuracy)}<small style="font-size:13px;color:var(--muted)">%</small></div>
         <div style="font-size:11.5px;color:var(--muted)">簡答答對率（n=${p.short_answer_n}）· 班均 ${num(p.class_short_answer_accuracy)}%</div>
-        <div style="font-size:11.5px;color:var(--muted);margin-top:4px">程式題提交 ${p.coding_submissions} 次</div>`;
+        <div style="font-family:var(--mono);font-size:24px;margin-top:8px">${num(p.fill_blank_rate)}<small style="font-size:13px;color:var(--muted)">%</small></div>
+        <div style="font-size:11.5px;color:var(--muted)">填空得分率（n=${p.fill_blank_n}）· 班均 ${num(p.class_fill_blank_rate)}%</div>`;
     }
 
     // ── E. 學生個案 ────────────────────────────────────────────
     let studentList = [];
+    let currentStudentId = '';
     function renderStudentCase(initialId) {
       return `<section class="card wide-12" style="padding:0">
         <div class="case-head">
@@ -487,22 +640,50 @@
 
     async function loadStudentCase(id) {
       const body = document.getElementById('case-body');
+      if (!body) return;
       if (!id) { body.innerHTML = '<div class="loading">請從右上選擇一位學生</div>'; return; }
+      currentStudentId = String(id);
       body.innerHTML = '<div class="loading">載入中…</div>';
+      try {
       const res = await apiFetch(`/auth/admin/research-analytics/student/${id}/`);
-      if (!res || !res.ok) { body.innerHTML = '<div class="loading">載入失敗</div>'; return; }
-      const d = await res.json();
-      document.getElementById('case-ava').textContent = (d.student.username || '?').charAt(0).toUpperCase();
-      document.getElementById('case-name').textContent = d.student.username;
+      if (!res || !res.ok) {
+        body.innerHTML = `<div class="loading">載入失敗${res ? `（HTTP ${res.status}）` : ''}</div>`;
+        return;
+      }
+      const raw = await res.json();
+      const d = {
+        ...raw,
+        student: raw.student || {},
+        metrics: raw.metrics || {},
+        trajectory: Array.isArray(raw.trajectory) ? raw.trajectory : [],
+        unit_scores: Array.isArray(raw.unit_scores) ? raw.unit_scores : [],
+        daily_usage: Array.isArray(raw.daily_usage) ? raw.daily_usage : [],
+        misconception_hits: Array.isArray(raw.misconception_hits) ? raw.misconception_hits : [],
+        compare: raw.compare || {},
+      };
+      const username = d.student.username || '未命名學生';
+      document.getElementById('case-ava').textContent = username.charAt(0).toUpperCase();
+      document.getElementById('case-name').textContent = username;
       document.getElementById('case-sub').textContent =
         `${d.student.gender || '未填性別'} · ${d.student.student_id || '無學號'} · 註冊於 ${fmtDate(d.student.date_joined)}`;
       const m = d.metrics;
-      const traj = d.trajectory.map(t => `U${t.unit}:${t.level ? 'Lv' + t.level : '—'}`).join('  ');
+      const unitLabels = d.unit_scores.map(t => `U${t.unit}`);
+      const attemptsByUnit = Array.from({ length: 8 }, () => []);
+      d.trajectory.forEach(t => {
+        if (t.unit >= 1 && t.unit <= 8) attemptsByUnit[t.unit - 1].push(t);
+      });
+      const trajectoryRounds = Array.from(
+        { length: Math.max(0, ...attemptsByUnit.map(rows => rows.length)) },
+        (_, round) => ({
+          label: round === 0 ? '初次學習' : `複習 ${round}`,
+          points: attemptsByUnit.map(rows => rows[round] || null),
+        }),
+      );
       const hits = d.misconception_hits.length
         ? d.misconception_hits.map(h => `<div class="hit-row"><span class="x">✗</span>
-            <span class="t">U${h.unit}「${esc(h.text)}」</span>
+            <span class="t">U${h.unit}·${QTYPE_LABEL[h.qtype] || ''}「${esc(h.text)}」</span>
             <span class="st ${h.redone ? 'done' : 'todo'}">${h.redone ? '已修正 ✓' : '未重做'}</span></div>`).join('')
-        : '<div style="font-size:12.5px;color:var(--muted)">尚無簡答錯誤紀錄</div>';
+        : '<div style="font-size:12.5px;color:var(--muted)">尚無錯誤作答紀錄</div>';
       const cmp = d.compare;
       body.innerHTML = `<div class="case-grid">
         <div class="case-col">
@@ -524,10 +705,9 @@
           </div>
         </div>
         <div class="case-col">
-          <div class="col-label">個人學習軌跡</div>
-          <div style="font-family:var(--mono);font-size:13px;line-height:2;color:var(--ink-2)">${traj}</div>
-          <div class="col-label" style="margin-top:18px">六大構念（前→後測）</div>
-          ${qMini(d.questionnaire)}
+          <div class="col-label">適性等級歷史軌跡</div>
+          ${d.trajectory.length ? chartBox('chart-case-level', 170)
+            : '<div style="font-size:12.5px;color:var(--muted)">尚無已完成的測驗紀錄</div>'}
           <div class="col-label" style="margin-top:18px">使用時間</div>
           ${usageMini(d.usage)}
         </div>
@@ -537,7 +717,99 @@
           <div class="col-label" style="margin-top:18px">迷思命中 · 個人</div>
           ${hits}
         </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1.4fr 1fr;border-top:1px solid var(--line)" class="case-grid">
+        <div class="case-col">
+          <div class="col-label">各單元測驗分數 · 個人 vs 班級平均</div>
+          ${chartBox('chart-case-score', 210)}
+        </div>
+        <div class="case-col">
+          <div class="col-label">每日使用時間</div>
+          ${d.daily_usage.length ? chartBox('chart-case-daily', 210)
+            : '<div style="font-size:12.5px;color:var(--muted)">尚無使用時段資料</div>'}
+        </div>
       </div>`;
+
+      // 個人圖表：初次學習與各輪複習、單元分數對照、每日使用
+      if (d.trajectory.length) queueChart('chart-case-level', {
+        type: 'line',
+        data: {
+          labels: unitLabels,
+          datasets: trajectoryRounds.map((round, i) => {
+            const colors = [CHART_COLORS.green, CHART_COLORS.blue,
+                            CHART_COLORS.amber, CHART_COLORS.red, CHART_COLORS.ink];
+            const color = colors[i % colors.length];
+            return {
+              label: round.label,
+              data: round.points.map(t => t ? t.level : null),
+              borderColor: color, backgroundColor: color,
+              borderDash: i === 0 ? [] : [6, 4],
+              spanGaps: true, pointRadius: 4,
+            };
+          }),
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          scales: {
+            y: { min: 0.5, max: 3.5,
+                 ticks: { stepSize: 1, color: CHART_COLORS.text,
+                          font: { size: 11, family: 'Roboto Mono' },
+                          callback: v => Number.isInteger(v) ? 'Lv' + v : '' },
+                 grid: { color: CHART_COLORS.grid } },
+            x: AXIS(),
+          },
+          plugins: {
+            tooltip: { callbacks: {
+              title: items => `U${items[0].dataIndex + 1} · ${items[0].dataset.label}`,
+              afterLabel: item => {
+                const t = trajectoryRounds[item.datasetIndex].points[item.dataIndex];
+                const when = t.completed_at ? new Date(t.completed_at).toLocaleString('zh-TW') : '—';
+                return [`分數：${num(t.score)}`, `完成：${when}`];
+              },
+            } },
+            legend: { position: 'bottom', labels: { color: CHART_COLORS.text, font: { size: 11 } } },
+          },
+        },
+      });
+      queueChart('chart-case-score', {
+        type: 'line',
+        data: {
+          labels: unitLabels,
+          datasets: [
+            { label: d.student.username, data: d.unit_scores.map(r => r.score),
+              borderColor: CHART_COLORS.blue, backgroundColor: CHART_COLORS.blue,
+              spanGaps: true, pointRadius: 4 },
+            { label: '班級平均', data: d.unit_scores.map(r => r.class_avg),
+              borderColor: CHART_COLORS.muted, backgroundColor: CHART_COLORS.muted,
+              borderDash: [6, 4], spanGaps: true, pointRadius: 0 },
+          ],
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          scales: { y: AXIS('分數', 100), x: AXIS() },
+          plugins: { legend: { position: 'bottom', labels: { color: CHART_COLORS.text, font: { size: 11 } } } },
+        },
+      });
+      if (d.daily_usage.length) {
+        queueChart('chart-case-daily', {
+          type: 'bar',
+          data: {
+            labels: d.daily_usage.map(r => r.date.slice(5)),
+            datasets: [{ label: '分鐘', data: d.daily_usage.map(r => r.minutes),
+                         backgroundColor: CHART_COLORS.ink, borderRadius: 3 }],
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            scales: { y: AXIS('分鐘'), x: AXIS('日期') },
+            plugins: { legend: { display: false } },
+          },
+        });
+      }
+      mountCharts();
+      } catch (error) {
+        console.error('載入學生研究分析失敗：', error);
+        body.innerHTML = '<div class="loading">資料已取得，但畫面處理失敗。請重新整理；若持續發生，請查看瀏覽器 Console。</div>';
+      }
     }
 
     // ── card 組裝器 ────────────────────────────────────────────
@@ -557,15 +829,15 @@
     // ── 模組定義（一次只顯示一個模組，由左側欄切換）────────────
     const MODULES = {
       behavior: { tag: 'A · 學習行為', sub: '學生如何走過八個單元',
-        render: d => renderClustering(d.clustering) + renderUnitDifficulty(d.unit_difficulty) },
+        render: d => renderLevelFlow(d.level_flow) + renderUnitDifficulty(d.unit_difficulty)
+                   + renderLearningCurve(d.learning_curve) },
       concept: { tag: 'B · 概念與評量', sub: '學生卡在哪、重做有沒有用、解題能力',
-        render: d => renderMisconceptions(d.misconceptions) + renderRetake(d.retake) + renderProblemSolving(d.problem_solving) },
+        render: d => renderMisconceptions(d.misconceptions) + renderRetake(d.retake)
+                   + renderAttemptEffort(d.attempt_effort) + renderProblemSolving(d.problem_solving) },
       intervention: { tag: 'C · 系統介入與使用', sub: '推薦、投入、使用時間、預警',
-        render: d => renderRecUptake(d.recommendation_uptake) + renderEngagement(d.engagement) + renderUsage(d.usage) + renderRisk(d.risk) },
-      psych: { tag: 'D · 子群與心理變項', sub: '性別差異與六大構念前後測',
-        render: d => renderGender(d.gender) + renderQuestionnaire(d.questionnaire) },
-      individual: { tag: 'E · 個人層級', sub: '切換視角 · 同一筆資料看單一學生',
-        render: d => renderStudentCase(null) },
+        render: d => renderRecUptake(d.recommendation_uptake) + renderEngagement(d.engagement) + renderUsage(d.usage) + renderEventAnalytics(d.event_analytics) + renderRisk(d.risk) },
+      individual: { tag: 'D · 個人層級', sub: '切換視角 · 同一筆資料看單一學生',
+        render: d => renderStudentCase(currentStudentId) },
     };
     let dashboardData = null;
     let activeModule = new URLSearchParams(window.location.search).get('section') || 'behavior';
@@ -577,10 +849,15 @@
       activeModule = section;
       const mod = MODULES[section];
       const grid = document.getElementById('module-grid');
+      pendingCharts = [];
       grid.innerHTML = sectHead(mod.tag, mod.sub) + mod.render(dashboardData);
+      mountCharts();
       if (section === 'individual') {
         const sel = document.getElementById('case-select');
-        if (sel) sel.addEventListener('change', e => loadStudentCase(e.target.value));
+        if (sel) {
+          sel.addEventListener('change', e => loadStudentCase(e.target.value));
+          if (sel.value) loadStudentCase(sel.value);
+        }
       }
     }
 

@@ -27,10 +27,21 @@
     .filter select { min-height:34px; border:1px solid #D8D2C4; border-radius:999px; padding:0 12px; background:#fff; font-family:inherit; }
     .actions { border-top:0; padding:12px 18px; display:flex; justify-content:space-between; align-items:center; color:#8a8478; font-size:.84rem; }
     .table-card { border-top:0; border-radius:0 0 16px 16px; overflow:hidden; }
-    .table-wrap { overflow:auto; width:100%; }
+    .table-wrap {
+      width:100%;
+      max-height:calc(100vh - 260px);
+      overflow:auto;
+      scrollbar-gutter:stable;
+      scrollbar-color:#9B9589 #F0ECE2;
+      scrollbar-width:auto;
+    }
+    .table-wrap::-webkit-scrollbar { width:12px; height:12px; }
+    .table-wrap::-webkit-scrollbar-track { background:#F0ECE2; }
+    .table-wrap::-webkit-scrollbar-thumb { background:#9B9589; border:3px solid #F0ECE2; border-radius:999px; }
+    .table-wrap::-webkit-scrollbar-thumb:hover { background:#6F6A61; }
     table { width:100%; border-collapse:collapse; min-width:980px; }
     th, td { padding:14px 16px; border-bottom:1px solid #ECE7DD; text-align:left; vertical-align:middle; font-size:.86rem; }
-    th { background:#F6F3EC; color:#5b564b; font-size:.72rem; text-transform:uppercase; letter-spacing:.06em; font-weight:950; white-space:nowrap; }
+    th { position:sticky; top:0; z-index:1; background:#F6F3EC; color:#5b564b; font-size:.72rem; text-transform:uppercase; letter-spacing:.06em; font-weight:950; white-space:nowrap; }
     tr:hover td { background:#FAF8F3; }
     .cell-muted { color:#8a8478; }
     .tag { display:inline-flex; align-items:center; min-height:24px; padding:0 9px; border-radius:7px; font-size:.76rem; font-weight:850; background:#F0ECE2; color:#4a463e; }
@@ -92,41 +103,6 @@
       <button class="btn primary" id="create-btn">+ 新增資料</button>
     </header>
 
-    <section class="survey-tools" id="survey-tools" hidden>
-      <div class="st-card">
-        <div class="st-title">批次登錄</div>
-        <div class="st-row">
-          <div class="st-field">
-            <label>構念</label>
-            <select id="st-scale"></select>
-          </div>
-          <div class="st-field">
-            <label>階段</label>
-            <div class="st-seg" id="st-phase">
-              <button data-phase="pre" class="active" type="button">前測</button>
-              <button data-phase="post" type="button">後測</button>
-            </div>
-          </div>
-          <div class="st-meta" id="st-meta"></div>
-        </div>
-        <div class="st-grid-wrap" id="st-grid"><div class="empty">載入中…</div></div>
-        <div class="st-savebar">
-          <button class="btn primary" id="st-save" type="button">儲存本頁分數</button>
-          <span class="msg" id="st-msg"></span>
-        </div>
-      </div>
-      <div class="st-card">
-        <div class="st-title">CSV 匯入（寬表）</div>
-        <div class="st-hint">第一欄為 <code>username</code> 或學號；其餘欄位標題為 <code>構念代碼_pre</code> / <code>構念代碼_post</code>（例如 <code>anxiety_post</code>）。空白儲存格略過，可直接從 Excel 貼上。</div>
-        <textarea id="st-csv" placeholder="username,anxiety_pre,anxiety_post&#10;student01,3.8,2.6"></textarea>
-        <div class="st-savebar">
-          <button class="btn" id="st-tpl" type="button">產生標題範本</button>
-          <button class="btn primary" id="st-import" type="button">匯入</button>
-        </div>
-        <div class="st-hint" id="st-import-result" style="margin-top:10px"></div>
-      </div>
-    </section>
-
     <section class="toolbar">
       <input id="search-input" type="search" placeholder="搜尋目前資料表" />
       <button class="btn" id="search-btn">搜尋</button>
@@ -177,15 +153,23 @@
     };
 
     const modelLabels = {
-      users: '使用者', courses: '課程', lessons: '單元', enrollments: '選課紀錄',
+      users: '使用者', courses: '課程', lessons: '單元',
       quizzes: '評量', questions: '題目', attempts: '作答紀錄',
+      question_interactions: '逐題互動紀錄', login_events: '登入事件',
+      study_sessions: '使用時段', student_events: '學生事件流水帳',
+      data_audits: '資料異動稽核',
       adaptive: '適性路徑', recommendations: '推薦紀錄',
-      progress: '學習進度', performance: '學習表現',
-      survey_scales: '問卷構念', survey_scores: '問卷成績',
+      progress: '學習進度', unit_summaries: '學生單元彙總',
     };
+
+    // 研究原始資料：唯讀，只供匯出與統計，不供逐列瀏覽編輯
+    const RESEARCH_RAW_MODELS = new Set(['student_events', 'question_interactions', 'study_sessions']);
 
     const COL_ZH = {
       id: '編號', username: '使用者名稱', email: '電子郵件', role: '角色',
+      first_name: '姓名', school_short_name: '學校簡稱', school_name: '學校',
+      preferred_programming_language: '預計使用的程式語言', import_note: '匯入備註',
+      must_change_password: '首次登入須改密碼',
       student_id: '學號', gender: '性別', is_active: '啟用中', date_joined: '加入日期',
       title: '標題', teacher: '教師', difficulty: '難度', created_at: '建立時間',
       updated_at: '更新時間', course: '課程', lesson: '單元', lesson_type: '單元類型',
@@ -195,12 +179,24 @@
       is_passed: '是否通過', started_at: '開始時間', completed_at: '完成時間',
       unit_number: '單元號', current_level: '目前等級', last_score: '最近分數',
       recommended_lesson: '推薦單元', reason: '原因', is_dismissed: '已關閉',
-      status: '狀態', time_spent: '學習時長（分）', last_accessed: '最後存取',
-      quiz_score_avg: '平均分數', proficiency: '精熟度', recorded_at: '記錄時間',
+      status: '狀態', last_accessed: '最後存取',
+      attempt_count: '作答次數', latest_score: '最近分數', best_score: '最佳分數',
+      last_activity_at: '最後活動時間',
       name: '名稱', group: '群組', key: '代碼', higher_is_better: '高分較好',
-      post_only: '僅後測', phase: '階段', is_clicked: '已點擊', clicked_at: '點擊時間',
+      post_only: '僅後測', phase: '階段',
       student_answer: '作答內容', is_correct: '是否正確', login_count: '登入次數',
       visit_count: '瀏覽次數', time_spent_seconds: '學習秒數', correct_answer: '正確答案',
+      event_uuid: '事件 UUID', event_type: '事件類型', occurred_at: '發生時間',
+      received_at: '接收時間', duration_ms: '持續毫秒', page_url: '頁面網址',
+      username_attempt: '嘗試帳號', ip_address: 'IP 位址', user_agent: '瀏覽器資訊',
+      first_viewed_at: '首次顯示', last_viewed_at: '最後顯示',
+      answer_revision_count: '答案修改次數', submitted_at: '提交時間',
+      ended_at: '結束時間', active_seconds: '活動秒數', end_reason: '結束原因',
+      research_code: '研究代碼', cohort: '研究梯次', is_included: '納入分析',
+      exclusion_reason: '排除原因', participant: '研究參與者',
+      consent_version: '同意書版本', granted_at: '同意時間', withdrawn_at: '撤回時間',
+      experiment_key: '實驗代碼', group_name: '實驗組別', algorithm_version: '演算法版本',
+      actor: '操作者', model_label: '資料模型', object_pk: '資料主鍵', action: '動作',
     };
     const colLabel = name => COL_ZH[name] || name;
 
@@ -337,14 +333,7 @@
       loadData();
     }
 
-    async function toggleSurveyTools() {
-      const on = state.model === 'survey_scores';
-      document.getElementById('survey-tools').hidden = !on;
-      if (on) { await ensureSurveyTools(); await loadSurveyGrid(); }
-    }
-
     async function loadData() {
-      toggleSurveyTools();
       document.getElementById('status-label').textContent = '載入中...';
       const params = new URLSearchParams({ page: state.page, page_size: 25 });
       const search = document.getElementById('search-input').value.trim();
@@ -387,12 +376,19 @@
     }
 
     function render() {
-      document.getElementById('title').textContent = `管理 ${state.data.title}`;
-      document.getElementById('count-label').textContent = `${state.data.count} 筆資料`;
+      const isRaw = RESEARCH_RAW_MODELS.has(state.model);
+      const canEdit = (state.data.editable_fields || []).length > 0;
+      const canCreate = (state.data.create_fields || []).length > 0;
+      document.getElementById('title').textContent = `${isRaw ? '' : '管理 '}${state.data.title}`;
+      document.getElementById('count-label').innerHTML = isRaw
+        ? `${state.data.count} 筆資料 · <span style="color:#b07a16;font-weight:800">研究原始資料（唯讀）— 供匯出與統計，不供逐列瀏覽</span>`
+        : `${state.data.count} 筆資料`;
+      document.getElementById('create-btn').style.display = canCreate ? '' : 'none';
       renderFilters();
+      const showActions = canEdit && !isRaw;
       document.getElementById('table-head').innerHTML = `
         ${state.data.columns.map(col => `<th>${escapeHtml(colLabel(col.name))}</th>`).join('')}
-        <th>操作</th>
+        ${showActions ? '<th>操作</th>' : ''}
       `;
       const body = document.getElementById('table-body');
       if (!state.data.results.length) {
@@ -406,12 +402,12 @@
             const cls = typeof value === 'boolean' ? `tag bool-${value}` : '';
             return `<td><span class="${cls}">${escapeHtml(valueText(value))}</span></td>`;
           }).join('')}
-          <td>
+          ${showActions ? `<td>
             <div class="row-actions">
               <button class="icon-btn" type="button" data-edit="${row.id}">編輯</button>
               <button class="icon-btn danger" type="button" data-delete="${row.id}">刪除</button>
             </div>
-          </td>
+          </td>` : ''}
         </tr>
       `).join('');
       body.querySelectorAll('[data-edit]').forEach(btn => btn.addEventListener('click', () => openDrawer(false, btn.dataset.edit)));
@@ -471,7 +467,7 @@
       }
     }
 
-    const PROTECTED_MODELS = new Set(['attempts', 'progress', 'recommendations', 'adaptive', 'performance', 'enrollments']);
+    const PROTECTED_MODELS = new Set(['attempts', 'progress', 'recommendations', 'adaptive', 'unit_summaries']);
 
     async function deleteRow(id) {
       if (PROTECTED_MODELS.has(state.model)) {

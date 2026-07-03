@@ -33,6 +33,14 @@
       padding: 16px; font-family: 'Fira Code', monospace; font-size: 0.85rem;
       line-height: 1.6; margin: 12px 0 20px; overflow-x: auto;
     }
+    .blank-input {
+      display: inline-block; width: 110px;
+      background: #2d2d2d; color: var(--color-lime);
+      border: none; border-bottom: 2px solid var(--color-lime);
+      font-family: 'Fira Code', monospace; font-size: 0.85rem;
+      padding: 2px 6px; margin: 0 2px; outline: none; text-align: center;
+    }
+    .blank-input:focus { background: #3a3a3a; }
     .choices { display: flex; flex-direction: column; gap: 12px; }
     .choice-label {
       display: flex; align-items: center; gap: 14px;
@@ -70,7 +78,6 @@
 
   <div class="quiz-wrap">
     <div class="quiz-header">
-      <div class="section-label" id="quiz-meta">載入中...</div>
       <h1 style="font-size:1.6rem;font-weight:900;margin:8px 0 4px" id="quiz-title">—</h1>
       <div id="progress-steps" class="progress-steps"></div>
     </div>
@@ -100,6 +107,13 @@
     let quizReady = true;
     let selectedAnswers = {};
     let startTime = Date.now();
+    let attemptId = null;
+    const questionVisibleSince = {};
+    let attemptSubmitted = false;
+
+    window.addEventListener('pagehide', () => {
+      if (attemptId && !attemptSubmitted) LearningAPI.abandonAttempt(attemptId);
+    });
 
     // 計時器
     setInterval(() => {
@@ -114,7 +128,17 @@
     function renderQuestion(q, idx) {
       const codeMatch = q.content.match(/```(?:python)?\n([\s\S]*?)```/);
       const textPart = q.content.replace(/```(?:python)?\n[\s\S]*?```/g, '').trim();
-      const codeBlock = codeMatch ? `<pre class="question-code">${escapeHtml(codeMatch[1])}</pre>` : '';
+      let codeBlock = codeMatch ? `<pre class="question-code">${escapeHtml(codeMatch[1])}</pre>` : '';
+
+      // 填空題：把程式碼中的 __1__、__2__ 換成行內輸入框
+      if (q.question_type === 'fill_blank' && codeMatch) {
+        const escaped = escapeHtml(codeMatch[1]);
+        const withInputs = escaped.replace(/__(\d+)__/g, (m, n) =>
+          `<input type="text" class="blank-input" autocomplete="off" spellcheck="false"
+             data-blank-q="${q.id}" data-blank-n="${n}"
+             placeholder="填空 ${n}" oninput="updateBlanks(${q.id})" />`);
+        codeBlock = `<pre class="question-code">${withInputs}</pre>`;
+      }
 
       let answerUI = '';
       if (q.question_type === 'multiple_choice') {
@@ -145,14 +169,19 @@
             placeholder="# 在此撰寫你的程式碼..."
             oninput="selectText(${q.id}, this.value)"></textarea>
           <div style="font-size:0.78rem;color:#aaa;margin-top:6px">提示：比對時忽略空白與大小寫；教師可設定多個可接受答案。</div>`;
+      } else if (q.question_type === 'fill_blank') {
+        answerUI = `
+          <div style="font-size:0.78rem;color:#aaa;margin-top:-8px">
+            提示：在上方程式碼的空格中填入答案，比對時忽略空白；每個空格分開計分。
+          </div>`;
       }
 
       return `
         <div class="question-card" id="q-card-${q.id}">
           <div class="question-num">題目 ${idx + 1} / ${quiz.questions.length}
             <span style="margin-left:8px;padding:2px 8px;border-radius:4px;font-size:0.72rem;
-              background:${q.question_type==='coding'?'#b3d9ff':q.question_type==='short_answer'?'var(--color-lime)':'#eee'}">
-              ${q.question_type==='coding'?'程式設計題':q.question_type==='short_answer'?'填空題':'選擇題'}
+              background:${{coding:'#b3d9ff',fill_blank:'#b3d9ff',short_answer:'var(--color-lime)'}[q.question_type]||'#eee'}">
+              ${{coding:'程式設計題',fill_blank:'程式填空題',short_answer:'填空題',multiple_choice:'選擇題',true_false:'是非題'}[q.question_type]||'題目'}
             </span>
           </div>
           <div class="question-text">${escapeHtml(textPart)}</div>
@@ -170,12 +199,60 @@
       selectedAnswers[questionId] = String(choiceId);
       checkAllAnswered();
       updateProgress();
+      recordAnswerChange(questionId, String(choiceId));
     }
 
     function selectText(questionId, value) {
       selectedAnswers[questionId] = value;
       checkAllAnswered();
       updateProgress();
+      recordAnswerChange(questionId, value);
+    }
+
+    // 填空題：收集該題所有空格，依編號以換行串接成單一答案（後端逐格批改）
+    function updateBlanks(questionId) {
+      const inputs = [...document.querySelectorAll(`[data-blank-q="${questionId}"]`)]
+        .sort((a, b) => Number(a.dataset.blankN) - Number(b.dataset.blankN));
+      const values = inputs.map(input => input.value.trim());
+      // 全部填了才視為已作答（避免半份答案就能送出）
+      selectedAnswers[questionId] = values.every(v => v !== '') ? values.join('\n') : '';
+      checkAllAnswered();
+      updateProgress();
+      if (selectedAnswers[questionId] !== '') recordAnswerChange(questionId, selectedAnswers[questionId]);
+    }
+
+    function recordAnswerChange(questionId, answer) {
+      if (!attemptId) return;
+      LearningAPI.recordQuestionInteraction({
+        attempt_id: attemptId, question_id: questionId,
+        event_type: 'answer_change', answer,
+      });
+    }
+
+    function observeQuestions() {
+      const observer = new IntersectionObserver(entries => {
+        entries.forEach(entry => {
+          const questionId = Number(entry.target.dataset.questionId);
+          if (entry.isIntersecting) {
+            questionVisibleSince[questionId] = Date.now();
+            LearningAPI.recordQuestionInteraction({
+              attempt_id: attemptId, question_id: questionId,
+              event_type: 'question_view', duration_ms: 0,
+            });
+          } else if (questionVisibleSince[questionId]) {
+            const duration = Date.now() - questionVisibleSince[questionId];
+            delete questionVisibleSince[questionId];
+            LearningAPI.recordQuestionInteraction({
+              attempt_id: attemptId, question_id: questionId,
+              event_type: 'question_view', duration_ms: duration,
+            });
+          }
+        });
+      }, { threshold: 0.5 });
+      document.querySelectorAll('.question-card').forEach(card => {
+        card.dataset.questionId = card.id.replace('q-card-', '');
+        observer.observe(card);
+      });
     }
 
     function checkAllAnswered() {
@@ -196,9 +273,16 @@
     }
 
     async function loadQuiz() {
-      const res = await apiFetch(`/assessments/${quizId}/`);
-      if (!res || !res.ok) { showToast('無法載入評量', 'error'); return; }
-      quiz = await res.json();
+      const startRes = await LearningAPI.startAttempt(quizId);
+      if (!startRes || !startRes.ok) {
+        const errorData = startRes ? await startRes.json().catch(() => null) : null;
+        showToast(errorData?.quiz_id || errorData?.detail || '無法建立測驗作答紀錄', 'error');
+        return;
+      }
+      const attempt = await startRes.json();
+      attemptId = attempt.id;
+      startTime = new Date(attempt.started_at).getTime();
+      quiz = attempt.quiz_data;
       quizReady = quiz.is_ready_for_submission !== false;
       if (!quizReady) {
         showToast('此評量尚有程式題未設定標準答案，請通知教師。', 'error');
@@ -206,7 +290,6 @@
 
       document.title = `${quiz.title} — AdaptLearn`;
       document.getElementById('quiz-title-nav').textContent = quiz.title;
-      document.getElementById('quiz-meta').textContent = `形成性評量 · ${quiz.question_count} 題 · 及格分數 ${quiz.pass_score} 分`;
       document.getElementById('quiz-title').textContent = quiz.title;
 
       // 進度步驟
@@ -216,6 +299,8 @@
       // 渲染題目
       document.getElementById('questions-container').innerHTML =
         quiz.questions.map((q, i) => renderQuestion(q, i)).join('');
+
+      observeQuestions();
     }
 
     document.getElementById('quiz-form').addEventListener('submit', async (e) => {
@@ -225,7 +310,9 @@
       btn.disabled = true;
 
       const payload = {
+        attempt_id: attemptId,
         quiz_id: parseInt(quizId),
+        ...eventStamp(),
         answers: Object.entries(selectedAnswers).map(([qId, ans]) => ({
           question_id: parseInt(qId),
           student_answer: ans,
@@ -239,6 +326,7 @@
 
       if (res && res.ok) {
         const attempt = await res.json();
+        attemptSubmitted = true;
         window.location.href = `quiz-result.html?attempt_id=${attempt.id}&lesson_id=${lessonId || ''}`;
       } else {
         const errorData = res ? await res.json().catch(() => null) : null;

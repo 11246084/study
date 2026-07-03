@@ -1,6 +1,21 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import Quiz, Question, Choice, QuizAttempt, Answer
+from .models import Quiz, Question, Choice, QuizAttempt, Answer, QuestionInteraction
+
+
+@admin.register(QuestionInteraction)
+class QuestionInteractionAdmin(admin.ModelAdmin):
+    list_display = ('attempt', 'question', 'first_viewed_at', 'last_answered_at',
+                    'duration_ms', 'answer_revision_count')
+    search_fields = ('attempt__student__username', 'question__content')
+    readonly_fields = [f.name for f in QuestionInteraction._meta.fields]
+    list_select_related = ('attempt', 'question')
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 class ChoiceInline(admin.TabularInline):
@@ -56,8 +71,8 @@ class QuizAdmin(admin.ModelAdmin):
 
 @admin.register(Question)
 class QuestionAdmin(admin.ModelAdmin):
-    list_display = ('order', 'short_content', 'quiz', 'question_type_badge', 'points')
-    list_filter = ('question_type', 'quiz__lesson__course__difficulty')
+    list_display = ('order', 'short_content', 'quiz', 'question_type_badge', 'concept', 'pattern', 'points')
+    list_filter = ('question_type', 'concept', 'pattern', 'quiz__lesson__course__difficulty')
     search_fields = ('content', 'quiz__title')
     ordering = ('quiz__lesson__course__difficulty', 'quiz__lesson__order', 'order')
     inlines = [ChoiceInline]

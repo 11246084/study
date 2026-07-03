@@ -5,16 +5,11 @@ from django.db.models import Avg, Count, F, Max, Min, Q, ProtectedError
 from django.shortcuts import get_object_or_404
 from django.utils.crypto import get_random_string
 from django.utils.dateparse import parse_datetime
+import json
 from rest_framework import generics, permissions, response, status, views
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .models import User
-from .serializers import ChangePasswordSerializer, RegisterSerializer, UserProfileSerializer
-
-
-class RegisterView(generics.CreateAPIView):
-    queryset = User.objects.all()
-    serializer_class = RegisterSerializer
-    permission_classes = [permissions.AllowAny]
+from .models import User, LoginEvent
+from .serializers import ChangePasswordSerializer, UserProfileSerializer
 
 
 class LoginView(TokenObtainPairView):
@@ -22,14 +17,51 @@ class LoginView(TokenObtainPairView):
 
     def post(self, request, *args, **kwargs):
         resp = super().post(request, *args, **kwargs)
+        username = str(request.data.get('username') or '')[:150]
+        forwarded = request.META.get('HTTP_X_FORWARDED_FOR', '')
+        ip_address = (forwarded.split(',')[0].strip() if forwarded else request.META.get('REMOTE_ADDR')) or None
+        event_kwargs = {
+            'username_attempt': username,
+            'event_type': 'login_success' if resp.status_code == 200 else 'login_failed',
+            'ip_address': ip_address,
+            'user_agent': request.META.get('HTTP_USER_AGENT', ''),
+        }
         # 登入成功才累計登入次數（RQ-05 投入度代理變數）
         if resp.status_code == 200:
-            username = request.data.get('username')
             if username:
                 User.objects.filter(username=username).update(
                     login_count=F('login_count') + 1
                 )
+                event_kwargs['user'] = User.objects.filter(username=username).first()
+        LoginEvent.objects.create(**event_kwargs)
         return resp
+
+
+class LogoutView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        forwarded = request.META.get('HTTP_X_FORWARDED_FOR', '')
+        ip_address = (forwarded.split(',')[0].strip() if forwarded else request.META.get('REMOTE_ADDR')) or None
+        LoginEvent.objects.create(
+            user=request.user, username_attempt=request.user.username,
+            event_type='logout', ip_address=ip_address,
+            user_agent=request.META.get('HTTP_USER_AGENT', ''),
+        )
+        from apps.learning.models import StudySession, StudentEvent
+        now = timezone.now()
+        session = StudySession.objects.filter(
+            student=request.user, ended_at__isnull=True,
+        ).order_by('-last_seen').first()
+        if session:
+            session.ended_at = now
+            session.end_reason = 'logout'
+            session.save(update_fields=['ended_at', 'end_reason'])
+            StudentEvent.objects.create(
+                student=request.user, session=session, event_type='session_end',
+                metadata={'reason': 'logout'},
+            )
+        return response.Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class SystemStatsView(views.APIView):
@@ -165,70 +197,6 @@ def _iso_week(dt):
     return f'{year}-W{week:02d}'
 
 
-def _survey_scale_rows(agg, single=False):
-    """把 (scale_id, phase) → 值 的聚合轉成每構念的前後測比較列。
-
-    agg: dict[(scale_id, phase)] = (value, n)  # 班級用 (平均, 樣本數)
-         或單一學生 dict[(scale_id, phase)] = value
-    """
-    from apps.surveys.models import SurveyScale
-    rows = []
-    any_data = False
-    for s in SurveyScale.objects.filter(is_active=True):
-        if single:
-            pre_v = agg.get((s.id, 'pre'))
-            post_v = agg.get((s.id, 'post'))
-            pre_n = post_n = None
-        else:
-            pre = agg.get((s.id, 'pre'))
-            post = agg.get((s.id, 'post'))
-            pre_v, pre_n = (round(pre[0], 2), pre[1]) if pre else (None, 0)
-            post_v, post_n = (round(post[0], 2), post[1]) if post else (None, 0)
-        if pre_v is not None or post_v is not None:
-            any_data = True
-        delta = round(post_v - pre_v, 2) if (pre_v is not None and post_v is not None) else None
-        improved = None
-        if delta is not None:
-            improved = (delta > 0) if s.higher_is_better else (delta < 0)
-        rows.append({
-            'key': s.key, 'name': s.name, 'group': s.group,
-            'higher_is_better': s.higher_is_better, 'post_only': s.post_only,
-            'score_min': s.score_min, 'score_max': s.score_max,
-            'pre': pre_v, 'post': post_v, 'pre_n': pre_n, 'post_n': post_n,
-            'delta': delta, 'improved': improved,
-        })
-    return rows, any_data
-
-
-def _survey_class_summary():
-    from django.db.models import Avg, Count
-    from apps.surveys.models import SurveyScore
-    agg = {}
-    for r in (SurveyScore.objects.filter(student__role='student')
-              .values('scale_id', 'phase').annotate(a=Avg('score'), n=Count('id'))):
-        agg[(r['scale_id'], r['phase'])] = (r['a'], r['n'])
-    rows, any_data = _survey_scale_rows(agg, single=False)
-    return {
-        'status': 'ready' if any_data else 'awaiting',
-        'scales': rows,
-        'note': '尚未登錄問卷成績；於「問卷成績」登錄前後測分數後即顯示班級前→後測變化。',
-    }
-
-
-def _survey_student_summary(student):
-    from apps.surveys.models import SurveyScore
-    agg = {
-        (sc.scale_id, sc.phase): sc.score
-        for sc in SurveyScore.objects.filter(student=student)
-    }
-    rows, any_data = _survey_scale_rows(agg, single=True)
-    return {
-        'status': 'ready' if any_data else 'awaiting',
-        'scales': rows,
-        'note': '尚未登錄此學生的問卷成績。',
-    }
-
-
 def _summarize_sessions(session_values):
     """session_values: iterable of dict(started_at, last_seen[, student_id])。
     回傳每週次數/時長與每次平均時長。"""
@@ -280,65 +248,80 @@ def _usage_student_summary(student):
     return _summarize_sessions(rows)
 
 
+CONSTRUCTED_TYPES = ['short_answer', 'fill_blank']  # 建構型題型：Level 2 簡答、Level 3 程式填空
+
+
 def _problem_solving_class_summary(unit_titles):
-    """以建構型題目（簡答＋程式）答對率衡量解題能力（RQ：解決問題能力）。
-    註：程式題為教師人工複閱、提交即給分，故主指標以簡答題答對率為準。"""
-    from django.db.models import Count, Q
+    """以建構型題目（簡答＋程式填空）表現衡量解題能力（RQ：解決問題能力）。
+    簡答一題全對全錯；填空按答對格數比例給分，故統一以「得分率」呈現。"""
+    from django.db.models import Count, Sum
     from apps.assessments.models import Answer
     base = Answer.objects.filter(
         attempt__student__role='student',
-        question__question_type__in=['short_answer', 'coding'],
+        question__question_type__in=CONSTRUCTED_TYPES,
     )
     total = base.count()
     if total == 0:
         return {'status': 'awaiting',
-                'note': '尚無建構型題目（簡答／程式）作答資料；學生作答後顯示解題能力。'}
+                'note': '尚無建構型題目（簡答／填空）作答資料；學生作答後顯示解題能力。'}
     sa = base.filter(question__question_type='short_answer')
     sa_total = sa.count()
     sa_correct = sa.filter(is_correct=True).count()
-    coding_total = base.filter(question__question_type='coding').count()
-    # 逐單元簡答答對率
+    fb = base.filter(question__question_type='fill_blank').aggregate(
+        earned=Sum('points_earned'), possible=Sum('question__points'), n=Count('id'))
+    # 逐單元建構型得分率
     by_unit = []
-    for r in (sa.values(unit=F('question__quiz__lesson__order'))
-              .annotate(t=Count('id'), c=Count('id', filter=Q(is_correct=True)))
+    for r in (base.values(unit=F('question__quiz__lesson__order'))
+              .annotate(earned=Sum('points_earned'), possible=Sum('question__points'), t=Count('id'))
               .order_by('unit')):
         by_unit.append({
             'unit': r['unit'], 'title': unit_titles.get(r['unit'], f"單元 {r['unit']}"),
-            'rate': round(r['c'] / r['t'] * 100, 1) if r['t'] else None, 'n': r['t'],
+            'rate': round(r['earned'] / r['possible'] * 100, 1) if r['possible'] else None,
+            'n': r['t'],
         })
     return {
         'status': 'ready',
         'short_answer_accuracy': round(sa_correct / sa_total * 100, 1) if sa_total else None,
         'short_answer_n': sa_total,
-        'coding_submissions': coding_total,
+        'fill_blank_rate': round(fb['earned'] / fb['possible'] * 100, 1) if fb['possible'] else None,
+        'fill_blank_n': fb['n'],
         'by_unit': by_unit,
-        'note': '解題能力以建構型題目（簡答＋程式）表現衡量；簡答題為自動比對、程式題為教師複閱。',
+        'note': '解題能力以建構型題目衡量：簡答（Level 2）為答對率、程式填空（Level 3）為逐格得分率。',
+    }
+
+
+def _constructed_stats(qs):
+    """簡答答對率＋填空得分率（qs 需已過濾為 CONSTRUCTED_TYPES）。"""
+    from django.db.models import Count, Sum
+    sa = qs.filter(question__question_type='short_answer')
+    sa_total = sa.count()
+    sa_correct = sa.filter(is_correct=True).count()
+    fb = qs.filter(question__question_type='fill_blank').aggregate(
+        earned=Sum('points_earned'), possible=Sum('question__points'), n=Count('id'))
+    return {
+        'short_answer_accuracy': round(sa_correct / sa_total * 100, 1) if sa_total else None,
+        'short_answer_n': sa_total,
+        'fill_blank_rate': round(fb['earned'] / fb['possible'] * 100, 1) if fb['possible'] else None,
+        'fill_blank_n': fb['n'],
     }
 
 
 def _problem_solving_student_summary(student):
-    from django.db.models import Count, Q
     from apps.assessments.models import Answer
     base = Answer.objects.filter(
         attempt__student=student,
-        question__question_type__in=['short_answer', 'coding'],
+        question__question_type__in=CONSTRUCTED_TYPES,
     )
     if base.count() == 0:
         return {'status': 'awaiting', 'note': '尚無建構型題目作答資料。'}
-    sa = base.filter(question__question_type='short_answer')
-    sa_total = sa.count()
-    sa_correct = sa.filter(is_correct=True).count()
     # 班級平均供對照
-    class_sa = Answer.objects.filter(
-        attempt__student__role='student', question__question_type='short_answer')
-    class_total = class_sa.count()
-    class_correct = class_sa.filter(is_correct=True).count()
+    class_stats = _constructed_stats(Answer.objects.filter(
+        attempt__student__role='student', question__question_type__in=CONSTRUCTED_TYPES))
     return {
         'status': 'ready',
-        'short_answer_accuracy': round(sa_correct / sa_total * 100, 1) if sa_total else None,
-        'short_answer_n': sa_total,
-        'coding_submissions': base.filter(question__question_type='coding').count(),
-        'class_short_answer_accuracy': round(class_correct / class_total * 100, 1) if class_total else None,
+        **_constructed_stats(base),
+        'class_short_answer_accuracy': class_stats['short_answer_accuracy'],
+        'class_fill_blank_rate': class_stats['fill_blank_rate'],
     }
 
 
@@ -369,10 +352,9 @@ class ResearchAnalyticsView(views.APIView):
         return titles
 
     def _class_overview(self, request):
-        from collections import Counter
-        from django.db.models import Sum
         from apps.assessments.models import QuizAttempt, Answer
-        from apps.learning.models import AdaptiveLearningPath, AdaptiveRecommendation, LearningProgress
+        from apps.learning.models import (AdaptiveLearningPath, AdaptiveRecommendation,
+                                          StudentEvent, StudySession)
 
         students = User.objects.filter(role='student')
         N = students.count()
@@ -393,11 +375,12 @@ class ResearchAnalyticsView(views.APIView):
                 u=Count('quiz__lesson__order', distinct=True)
             )
         }
-        time_by_student = {
-            r['student_id']: r['t'] or 0
-            for r in LearningProgress.objects.filter(student__role='student')
-            .values('student_id').annotate(t=Sum('time_spent'))
-        }
+        # 線上時數統一以 StudySession 心跳時段計（與「使用時間」卡同一定義）
+        time_by_student = {}  # student_id -> 分鐘
+        for s in StudySession.objects.filter(student__role='student').values(
+                'student_id', 'started_at', 'last_seen'):
+            mins = max(0.0, (s['last_seen'] - s['started_at']).total_seconds() / 60)
+            time_by_student[s['student_id']] = time_by_student.get(s['student_id'], 0.0) + mins
 
         # ── unit_difficulty（ready）─────────────────────────────
         diff_rows = {
@@ -416,20 +399,61 @@ class ResearchAnalyticsView(views.APIView):
             })
         diff_status = 'ready' if any(r['samples'] for r in unit_difficulty) else 'awaiting'
 
-        # ── misconceptions（ready）──────────────────────────────
-        wrong_pairs = Answer.objects.filter(
-            is_correct=False, question__question_type='short_answer',
+        # ── misconceptions：三等級（選擇誘答／簡答錯誤／填空逐格）──
+        # 分子＝犯該錯誤的不重複人數；分母＝該單元作答過該題型的不重複人數
+        from apps.assessments.models import Choice
+        from apps.assessments.views import fill_blank_config, normalize_blank_answer
+
+        answered = {}   # (unit, qtype) -> set(student_id)
+        errors = {}     # (unit, qtype, text) -> set(student_id)
+        mc_wrong = []   # (unit, student_id, choice_id)
+
+        con_rows = Answer.objects.filter(
             attempt__student__role='student',
-        ).values_list('question__quiz__lesson__order', 'student_answer')
-        counter = Counter()
-        for order, ans in wrong_pairs:
-            text = (ans or '').strip()
-            if text:
-                counter[(order, text.lower())] += 1
+            question__question_type__in=['multiple_choice', 'short_answer', 'fill_blank'],
+        ).values(
+            'student_answer', 'is_correct',
+            sid=F('attempt__student_id'),
+            unit=F('question__quiz__lesson__order'),
+            qtype=F('question__question_type'),
+            answer_key=F('question__correct_answer'),
+        )
+        for row in con_rows:
+            answered.setdefault((row['unit'], row['qtype']), set()).add(row['sid'])
+            if row['is_correct']:
+                continue
+            if row['qtype'] == 'multiple_choice':
+                try:
+                    mc_wrong.append((row['unit'], row['sid'], int(row['student_answer'])))
+                except (TypeError, ValueError):
+                    pass
+            elif row['qtype'] == 'short_answer':
+                text = (row['student_answer'] or '').strip()
+                if text:
+                    errors.setdefault((row['unit'], 'short_answer', text.lower()), set()).add(row['sid'])
+            else:  # fill_blank：逐格比對，收集答錯格的實際填答
+                blanks = fill_blank_config(row['answer_key'])
+                submitted = (row['student_answer'] or '').replace('\r\n', '\n').replace('\r', '\n').split('\n')
+                for i, alternatives in enumerate(blanks):
+                    value = submitted[i] if i < len(submitted) else ''
+                    if normalize_blank_answer(value) in {normalize_blank_answer(a) for a in alternatives}:
+                        continue
+                    text = value.strip() or '（未填）'
+                    errors.setdefault((row['unit'], 'fill_blank', text), set()).add(row['sid'])
+
+        choice_map = Choice.objects.in_bulk({cid for _, _, cid in mc_wrong})
+        for unit, sid, cid in mc_wrong:
+            choice = choice_map.get(cid)
+            if choice:
+                errors.setdefault(
+                    (unit, 'multiple_choice', choice.content.strip()), set()).add(sid)
+
+        ranked = sorted(errors.items(), key=lambda kv: -len(kv[1]))[:10]
         misconceptions = [
-            {'unit': order, 'title': unit_titles.get(order, f'單元 {order}'),
-             'text': text, 'count': cnt, 'total': N}
-            for (order, text), cnt in counter.most_common(8)
+            {'unit': unit, 'title': unit_titles.get(unit, f'單元 {unit}'),
+             'qtype': qtype, 'text': text, 'count': len(sids),
+             'total': len(answered.get((unit, qtype), ())) or N}
+            for (unit, qtype, text), sids in ranked
         ]
         misc_status = 'ready' if misconceptions else 'awaiting'
 
@@ -467,26 +491,13 @@ class ResearchAnalyticsView(views.APIView):
         # ── recommendation_uptake ──────────────────────────────
         recs = AdaptiveRecommendation.objects.filter(student__role='student')
         rec_total = recs.count()
-        rec_clicked = recs.filter(is_clicked=True).count()
-        rec_ignored = recs.filter(is_dismissed=True, is_clicked=False).count()
+        rec_clicked = recs.filter(click_count__gt=0).count()
+        rec_ignored = recs.filter(is_dismissed=True, click_count=0).count()
         recommendation_uptake = {
             'total': rec_total, 'clicked': rec_clicked, 'ignored': rec_ignored,
             'click_rate': round(rec_clicked / rec_total * 100, 1) if rec_total else None,
         }
         rec_status = 'ready' if rec_clicked else 'awaiting'
-
-        # ── gender（awaiting until filled）──────────────────────
-        gender_label = dict(User.GENDER_CHOICES)
-        gender_rows = [
-            {'gender': r['student__gender'],
-             'label': gender_label.get(r['student__gender'], '未填'),
-             'avg': round(r['a'], 1) if r['a'] is not None else None,
-             'n': r['n']}
-            for r in completed_at_qs.exclude(student__gender='')
-            .values('student__gender').annotate(a=Avg('score'), n=Count('student_id', distinct=True))
-        ]
-        gender = {'rows': gender_rows, 'missing': students.filter(gender='').count()}
-        gender_status = 'ready' if gender_rows else 'awaiting'
 
         # ── engagement（awaiting until time accrues）────────────
         engagement_points = [
@@ -519,6 +530,80 @@ class ResearchAnalyticsView(views.APIView):
         }
         risk_status = 'ready' if early else 'awaiting'
 
+        # ── learning_curve：各單元班級平均分（四天課程走勢）─────
+        curve_rows = {
+            r['unit']: r for r in completed_at_qs
+            .values(unit=F('quiz__lesson__order'))
+            .annotate(avg=Avg('score'), n=Count('id'))
+        }
+        learning_curve = {
+            'status': 'ready' if curve_rows else 'awaiting',
+            'rows': [{'unit': u, 'title': unit_titles.get(u, f'單元 {u}'),
+                      'avg': round(curve_rows[u]['avg'], 1) if u in curve_rows else None,
+                      'n': curve_rows[u]['n'] if u in curve_rows else 0}
+                     for u in range(1, 9)],
+        }
+
+        # ── attempt_effort：作答時長與放棄率 ─────────────────────
+        eff = {u: {'mins': 0.0, 'n_mins': 0, 'completed': 0, 'abandoned': 0}
+               for u in range(1, 9)}
+        for a in QuizAttempt.objects.filter(student__role='student').values(
+                'started_at', 'completed_at', 'abandoned_at', unit=F('quiz__lesson__order')):
+            u = a['unit']
+            if u not in eff:
+                continue
+            if a['completed_at']:
+                eff[u]['completed'] += 1
+                mins = (a['completed_at'] - a['started_at']).total_seconds() / 60
+                if 0 < mins <= 180:  # 排除掛機造成的異常時長
+                    eff[u]['mins'] += mins
+                    eff[u]['n_mins'] += 1
+            elif a['abandoned_at']:
+                eff[u]['abandoned'] += 1
+        effort_rows = []
+        for u in range(1, 9):
+            e = eff[u]
+            finished = e['completed'] + e['abandoned']
+            effort_rows.append({
+                'unit': u, 'title': unit_titles.get(u, f'單元 {u}'),
+                'avg_minutes': round(e['mins'] / e['n_mins'], 1) if e['n_mins'] else None,
+                'abandon_rate': round(e['abandoned'] / finished * 100, 1) if finished else None,
+                'completed': e['completed'], 'abandoned': e['abandoned'],
+            })
+        attempt_effort = {
+            'status': 'ready' if any(r['completed'] or r['abandoned'] for r in effort_rows)
+                      else 'awaiting',
+            'rows': effort_rows,
+        }
+
+        # ── level_flow：各單元等級分布＋升降統計（適性分流證據）──
+        paths = list(AdaptiveLearningPath.objects.filter(student__role='student')
+                     .values('student_id', 'unit_number', 'current_level'))
+        level_dist = {u: {1: 0, 2: 0, 3: 0} for u in range(1, 9)}
+        levels_by_student = {}
+        for p in paths:
+            if 1 <= p['unit_number'] <= 8 and p['current_level'] in (1, 2, 3):
+                level_dist[p['unit_number']][p['current_level']] += 1
+                levels_by_student.setdefault(p['student_id'], {})[p['unit_number']] = p['current_level']
+        lv_up = lv_down = lv_same = 0
+        for levels in levels_by_student.values():
+            for u in range(1, 8):
+                if u in levels and (u + 1) in levels:
+                    if levels[u + 1] > levels[u]:
+                        lv_up += 1
+                    elif levels[u + 1] < levels[u]:
+                        lv_down += 1
+                    else:
+                        lv_same += 1
+        level_flow = {
+            'status': 'ready' if paths else 'awaiting',
+            'dist': [{'unit': u, 'title': unit_titles.get(u, f'單元 {u}'),
+                      'l1': level_dist[u][1], 'l2': level_dist[u][2], 'l3': level_dist[u][3]}
+                     for u in range(1, 9)],
+            'up': lv_up, 'down': lv_down, 'same': lv_same,
+            'note': '尚無適性路徑資料；學生交卷後系統會為下一單元指定等級，此圖自動累積。',
+        }
+
         # ── KPI strip ───────────────────────────────────────────
         completion_vals = [units_by_student.get(s, 0) / 8 * 100 for s in username_by_id]
         avg_completion = round(sum(completion_vals) / N, 1) if N else None
@@ -536,11 +621,21 @@ class ResearchAnalyticsView(views.APIView):
             {'label': '推薦點擊率', 'value': recommendation_uptake['click_rate'], 'unit': '%',
              'status': rec_status, 'note': '埋點累積中'},
             {'label': '高風險學生', 'value': risk['high'], 'unit': '人', 'status': risk_status},
-            {'label': '已填性別', 'value': N - gender['missing'], 'unit': f'/{N}',
-             'status': 'ready' if (N - gender['missing']) else 'awaiting'},
+            {'label': '樣本數', 'value': N, 'unit': '人', 'status': 'ready'},
         ]
 
         period = completed_at_qs.aggregate(start=Min('completed_at'), end=Max('completed_at'))
+        event_rows = list(
+            StudentEvent.objects.filter(student__role='student')
+            .values('event_type').annotate(count=Count('id')).order_by('-count')[:20]
+        )
+        event_total = sum(row['count'] for row in event_rows)
+        event_analytics = {
+            'status': 'ready' if event_total else 'awaiting',
+            'total': event_total,
+            'by_type': event_rows,
+            'students': StudentEvent.objects.values('student_id').distinct().count(),
+        }
         return response.Response({
             'meta': {
                 'N': N, 'units': 8,
@@ -553,28 +648,31 @@ class ResearchAnalyticsView(views.APIView):
             'misconceptions': {'status': misc_status, 'rows': misconceptions},
             'retake': {'status': retake_status, **retake},
             'recommendation_uptake': {'status': rec_status, **recommendation_uptake},
-            'gender': {'status': gender_status, **gender},
             'engagement': {'status': eng_status, 'points': engagement_points},
             'risk': {'status': risk_status, **risk},
-            'clustering': {'status': 'awaiting',
-                           'note': '需 k-means 分群與足夠樣本數，原料（每生各單元 level）已在累積'},
-            'questionnaire': _survey_class_summary(),
+            'level_flow': level_flow,
+            'learning_curve': learning_curve,
+            'attempt_effort': attempt_effort,
             'usage': _usage_class_summary(),
             'problem_solving': _problem_solving_class_summary(unit_titles),
+            'event_analytics': event_analytics,
         })
 
     def _student_detail(self, request, pk):
-        from django.db.models import Sum
         from apps.assessments.models import QuizAttempt, Answer
-        from apps.learning.models import AdaptiveLearningPath, LearningProgress
+        from apps.learning.models import AdaptiveLearningPath, StudySession
 
         student = get_object_or_404(User, pk=pk, role='student')
         attempts = QuizAttempt.objects.filter(student=student, completed_at__isnull=False)
 
         completed_units = attempts.values('quiz__lesson__order').distinct().count()
         avg_score = attempts.aggregate(a=Avg('score'))['a']
-        hours = (LearningProgress.objects.filter(student=student)
-                 .aggregate(t=Sum('time_spent'))['t'] or 0) / 60
+        # 線上時數統一以 StudySession 心跳時段計（時段列表下方每日圖重用）
+        session_rows = list(StudySession.objects.filter(student=student)
+                            .values('started_at', 'last_seen'))
+        hours = sum(
+            max(0.0, (r['last_seen'] - r['started_at']).total_seconds())
+            for r in session_rows) / 3600
         mastery = AdaptiveLearningPath.objects.filter(student=student).aggregate(
             a=Avg('current_level'))['a']
 
@@ -582,32 +680,110 @@ class ResearchAnalyticsView(views.APIView):
         quiz_counts = attempts.values('quiz_id').annotate(c=Count('id'))
         retake_count = sum(1 for r in quiz_counts if r['c'] >= 2)
 
-        # 每單元 level 軌跡
-        path_by_unit = {
-            p.unit_number: p.current_level
-            for p in AdaptiveLearningPath.objects.filter(student=student)
-        }
+        # 歷史 level 軌跡：每次完成的測驗都是一個點，重做亦保留。
+        # level 取該次實際作答課程的難度，而非目前 AdaptiveLearningPath 快照。
+        difficulty_to_level = {'beginner': 1, 'intermediate': 2, 'advanced': 3}
         trajectory = [
-            {'unit': u, 'level': path_by_unit.get(u)} for u in range(1, 9)
+            {
+                'unit': row['quiz__lesson__order'],
+                'level': difficulty_to_level.get(row['quiz__lesson__course__difficulty'], 2),
+                'score': round(row['score'], 1),
+                'completed_at': row['completed_at'],
+            }
+            for row in attempts.values(
+                'quiz__lesson__order',
+                'quiz__lesson__course__difficulty',
+                'score',
+                'completed_at',
+            ).order_by('completed_at', 'id')
         ]
 
-        # 個人迷思命中（簡答錯誤）
-        wrong = Answer.objects.filter(
-            attempt__student=student, is_correct=False,
-            question__question_type='short_answer',
-        ).values('question__quiz__lesson__order', 'student_answer').distinct()
-        # 是否之後在同單元答對 → 視為已重做修正
-        correct_units = set(
-            Answer.objects.filter(
-                attempt__student=student, is_correct=True,
-                question__question_type='short_answer',
-            ).values_list('question__quiz__lesson__order', flat=True)
+        # 每單元分數：該生 vs 班級平均（個人圖表用）
+        stu_unit = {
+            r['u']: r['a']
+            for r in attempts.values(u=F('quiz__lesson__order')).annotate(a=Avg('score'))
+        }
+        cls_unit = {
+            r['u']: r['a']
+            for r in QuizAttempt.objects.filter(
+                student__role='student', completed_at__isnull=False)
+            .values(u=F('quiz__lesson__order')).annotate(a=Avg('score'))
+        }
+        unit_scores = [
+            {'unit': u,
+             'score': round(stu_unit[u], 1) if stu_unit.get(u) is not None else None,
+             'class_avg': round(cls_unit[u], 1) if cls_unit.get(u) is not None else None}
+            for u in range(1, 9)
+        ]
+
+        # 每日使用時間（分鐘）：與 _summarize_sessions 相同的時段長度定義
+        from django.utils import timezone as tz
+        daily = {}
+        for s in session_rows:
+            started = s['started_at']
+            day = (tz.localtime(started) if tz.is_aware(started) else started).date()
+            mins = max(0.0, (s['last_seen'] - s['started_at']).total_seconds() / 60)
+            daily[day] = daily.get(day, 0.0) + mins
+        daily_usage = [
+            {'date': day.isoformat(), 'minutes': round(m, 1)}
+            for day, m in sorted(daily.items())
+        ]
+
+        # 個人迷思命中（三題型：選擇誘答／簡答錯誤／填空逐格）
+        from apps.assessments.models import Choice
+        from apps.assessments.views import fill_blank_config, normalize_blank_answer
+        con_rows = Answer.objects.filter(
+            attempt__student=student,
+            question__question_type__in=['multiple_choice', 'short_answer', 'fill_blank'],
+        ).values(
+            'student_answer', 'is_correct',
+            unit=F('question__quiz__lesson__order'),
+            qtype=F('question__question_type'),
+            answer_key=F('question__correct_answer'),
         )
+        correct_units = {}   # qtype -> set(units)：同單元同題型後有答對 → 視為已修正
+        hit_keys = []        # (unit, qtype, text)，保留出現順序
+        seen = set()
+        mc_wrong = []
+        for row in con_rows:
+            if row['is_correct']:
+                correct_units.setdefault(row['qtype'], set()).add(row['unit'])
+                continue
+            if row['qtype'] == 'multiple_choice':
+                try:
+                    mc_wrong.append((row['unit'], int(row['student_answer'])))
+                except (TypeError, ValueError):
+                    pass
+            elif row['qtype'] == 'short_answer':
+                text = (row['student_answer'] or '').strip()
+                if text:
+                    key = (row['unit'], 'short_answer', text)
+                    if key not in seen:
+                        seen.add(key)
+                        hit_keys.append(key)
+            else:  # fill_blank
+                blanks = fill_blank_config(row['answer_key'])
+                submitted = (row['student_answer'] or '').replace('\r\n', '\n').replace('\r', '\n').split('\n')
+                for i, alternatives in enumerate(blanks):
+                    value = submitted[i] if i < len(submitted) else ''
+                    if normalize_blank_answer(value) in {normalize_blank_answer(a) for a in alternatives}:
+                        continue
+                    key = (row['unit'], 'fill_blank', value.strip() or '（未填）')
+                    if key not in seen:
+                        seen.add(key)
+                        hit_keys.append(key)
+        choice_map = Choice.objects.in_bulk({cid for _, cid in mc_wrong})
+        for unit, cid in mc_wrong:
+            choice = choice_map.get(cid)
+            if choice:
+                key = (unit, 'multiple_choice', choice.content.strip())
+                if key not in seen:
+                    seen.add(key)
+                    hit_keys.append(key)
         misconception_hits = [
-            {'unit': w['question__quiz__lesson__order'],
-             'text': (w['student_answer'] or '').strip(),
-             'redone': w['question__quiz__lesson__order'] in correct_units}
-            for w in wrong if (w['student_answer'] or '').strip()
+            {'unit': unit, 'qtype': qtype, 'text': text,
+             'redone': unit in correct_units.get(qtype, set())}
+            for unit, qtype, text in hit_keys
         ]
 
         # 班級平均（對照）
@@ -629,12 +805,13 @@ class ResearchAnalyticsView(views.APIView):
                 'retake_count': retake_count,
             },
             'trajectory': trajectory,
+            'unit_scores': unit_scores,
+            'daily_usage': daily_usage,
             'misconception_hits': misconception_hits,
             'compare': {
                 'score': round(avg_score, 1) if avg_score is not None else None,
                 'class_score': round(class_avg, 1) if class_avg is not None else None,
             },
-            'questionnaire': _survey_student_summary(student),
             'usage': _usage_student_summary(student),
             'problem_solving': _problem_solving_student_summary(student),
         })
@@ -644,7 +821,7 @@ class MyReportView(views.APIView):
     """學生個人成長報表（學生本人可看）。
 
     刻意不顯示 Level 1/2/3 標籤（學生視角避免標籤化），只呈現：
-    六大構念前→後測變化、學習成效（平均分、完成單元）、使用時間、解題能力。
+    學習成效（平均分、完成單元）、使用時間與解題能力。
     """
     permission_classes = [permissions.IsAuthenticated]
 
@@ -668,7 +845,6 @@ class MyReportView(views.APIView):
                 'total_units': 8,
                 'class_avg_score': round(class_avg, 1) if class_avg is not None else None,
             },
-            'questionnaire': _survey_student_summary(student),
             'usage': _usage_student_summary(student),
             'problem_solving': _problem_solving_student_summary(student),
         })
@@ -695,7 +871,20 @@ def _coerce_value(field, value):
         return value in (True, 'true', 'True', '1', 1, 'on', 'yes')
     if field_type == 'DateTimeField':
         return parse_datetime(value) if isinstance(value, str) else value
+    if field_type == 'JSONField' and isinstance(value, str):
+        return json.loads(value or '{}')
     return value
+
+
+def _audit_snapshot(obj):
+    result = {}
+    for field in obj._meta.concrete_fields:
+        value = getattr(obj, field.attname)
+        if value is None or isinstance(value, (str, int, float, bool, list, dict)):
+            result[field.name] = value
+        else:
+            result[field.name] = str(value)
+    return result
 
 
 class AdminDataView(views.APIView):
@@ -707,10 +896,23 @@ class AdminDataView(views.APIView):
             'title': '使用者',
             'search': ['username', 'email', 'student_id'],
             'order': ['role', 'username'],
-            'columns': ['id', 'username', 'email', 'role', 'student_id', 'gender', 'is_active', 'date_joined'],
-            'editable': ['email', 'role', 'student_id', 'gender', 'is_active'],
-            'create': ['username', 'email', 'password', 'role', 'student_id', 'gender', 'is_active'],
+            'columns': ['id', 'username', 'first_name', 'email', 'role', 'student_id',
+                        'school_short_name', 'school_name', 'preferred_programming_language',
+                        'must_change_password', 'is_active', 'date_joined'],
+            'editable': ['first_name', 'email', 'role', 'student_id', 'gender',
+                         'school_short_name', 'school_name', 'preferred_programming_language',
+                         'import_note', 'must_change_password', 'is_active'],
+            'create': ['username', 'first_name', 'email', 'password', 'role', 'student_id',
+                       'gender', 'school_short_name', 'school_name',
+                       'preferred_programming_language', 'import_note',
+                       'must_change_password', 'is_active'],
             'filters': {'role': ['student', 'teacher', 'admin'], 'is_active': [True, False]},
+        },
+        'data_audits': {
+            'model': ('users', 'DataChangeAudit'), 'title': '資料異動稽核',
+            'search': ['actor__username', 'model_label', 'object_pk', 'reason'], 'order': ['-occurred_at'],
+            'columns': ['id', 'actor', 'model_label', 'object_pk', 'action', 'occurred_at', 'reason'],
+            'editable': [], 'create': [], 'filters': {'action': ['create', 'update', 'delete']},
         },
         'courses': {
             'model': ('courses', 'Course'),
@@ -727,19 +929,9 @@ class AdminDataView(views.APIView):
             'title': '單元',
             'search': ['title', 'course__title', 'content'],
             'order': ['course__id', 'order'],
-            'columns': ['id', 'course', 'title', 'lesson_type', 'order', 'duration_minutes'],
-            'editable': ['course', 'title', 'content', 'lesson_type', 'order', 'duration_minutes'],
-            'create': ['course', 'title', 'content', 'lesson_type', 'order', 'duration_minutes'],
-            'filters': {'lesson_type': ['text', 'video', 'exercise']},
-        },
-        'enrollments': {
-            'model': ('courses', 'Enrollment'),
-            'title': '選課紀錄',
-            'search': ['student__username', 'course__title'],
-            'order': ['-enrolled_at'],
-            'columns': ['id', 'student', 'course', 'progress', 'enrolled_at'],
-            'editable': ['student', 'course', 'progress'],
-            'create': ['student', 'course', 'progress'],
+            'columns': ['id', 'course', 'title', 'order', 'duration_minutes'],
+            'editable': ['course', 'title', 'content', 'order', 'duration_minutes'],
+            'create': ['course', 'title', 'content', 'order', 'duration_minutes'],
             'filters': {},
         },
         'quizzes': {
@@ -760,7 +952,7 @@ class AdminDataView(views.APIView):
             'columns': ['id', 'quiz', 'order', 'question_type', 'content', 'points'],
             'editable': ['quiz', 'order', 'question_type', 'content', 'correct_answer', 'points', 'explanation'],
             'create': ['quiz', 'order', 'question_type', 'content', 'correct_answer', 'points', 'explanation'],
-            'filters': {'question_type': ['multiple_choice', 'true_false', 'short_answer', 'coding']},
+            'filters': {'question_type': ['multiple_choice', 'true_false', 'short_answer', 'coding', 'fill_blank']},
         },
         'attempts': {
             'model': ('assessments', 'QuizAttempt'),
@@ -771,6 +963,43 @@ class AdminDataView(views.APIView):
             'editable': ['student', 'quiz', 'score', 'is_passed', 'completed_at'],
             'create': ['student', 'quiz', 'score', 'is_passed', 'completed_at'],
             'filters': {'is_passed': [True, False]},
+        },
+        'question_interactions': {
+            'model': ('assessments', 'QuestionInteraction'),
+            'title': '逐題互動紀錄',
+            'search': ['attempt__student__username', 'question__content'],
+            'order': ['-last_viewed_at'],
+            'columns': ['id', 'attempt', 'question', 'first_viewed_at', 'last_viewed_at',
+                        'duration_ms', 'answer_revision_count', 'submitted_at'],
+            'editable': [], 'create': [], 'filters': {},
+        },
+        'login_events': {
+            'model': ('users', 'LoginEvent'),
+            'title': '登入事件',
+            'search': ['user__username', 'username_attempt', 'ip_address', 'user_agent'],
+            'order': ['-occurred_at'],
+            'columns': ['id', 'event_type', 'user', 'username_attempt', 'occurred_at',
+                        'ip_address', 'user_agent'],
+            'editable': [], 'create': [],
+            'filters': {'event_type': ['login_success', 'login_failed', 'logout']},
+        },
+        'study_sessions': {
+            'model': ('learning', 'StudySession'),
+            'title': '使用時段',
+            'search': ['student__username', 'user_agent'],
+            'order': ['-started_at'],
+            'columns': ['id', 'student', 'started_at', 'last_seen', 'ended_at',
+                        'active_seconds', 'end_reason'],
+            'editable': [], 'create': [], 'filters': {},
+        },
+        'student_events': {
+            'model': ('learning', 'StudentEvent'),
+            'title': '學生事件流水帳',
+            'search': ['student__username', 'event_type', 'page_url'],
+            'order': ['-occurred_at', '-id'],
+            'columns': ['id', 'event_uuid', 'student', 'event_type', 'course', 'lesson',
+                        'quiz', 'question', 'occurred_at', 'received_at', 'duration_ms', 'page_url'],
+            'editable': [], 'create': [], 'filters': {},
         },
         'adaptive': {
             'model': ('learning', 'AdaptiveLearningPath'),
@@ -797,40 +1026,20 @@ class AdminDataView(views.APIView):
             'title': '學習進度',
             'search': ['student__username', 'lesson__title'],
             'order': ['-last_accessed'],
-            'columns': ['id', 'student', 'lesson', 'status', 'time_spent', 'last_accessed', 'completed_at'],
-            'editable': ['student', 'lesson', 'status', 'time_spent', 'completed_at'],
-            'create': ['student', 'lesson', 'status', 'time_spent', 'completed_at'],
+            'columns': ['id', 'student', 'lesson', 'status', 'time_spent_seconds', 'last_accessed', 'completed_at'],
+            'editable': ['student', 'lesson', 'status', 'time_spent_seconds', 'completed_at'],
+            'create': ['student', 'lesson', 'status', 'time_spent_seconds', 'completed_at'],
             'filters': {'status': ['not_started', 'in_progress', 'completed']},
         },
-        'performance': {
-            'model': ('learning', 'PerformanceRecord'),
-            'title': '學習表現',
-            'search': ['student__username', 'course__title'],
-            'order': ['course__title'],
-            'columns': ['id', 'student', 'course', 'quiz_score_avg', 'proficiency', 'recorded_at'],
-            'editable': ['student', 'course', 'quiz_score_avg', 'proficiency'],
-            'create': ['student', 'course', 'quiz_score_avg', 'proficiency'],
-            'filters': {'proficiency': ['low', 'medium', 'high']},
-        },
-        'survey_scales': {
-            'model': ('surveys', 'SurveyScale'),
-            'title': '問卷構念',
-            'search': ['name', 'key', 'group'],
-            'order': ['order', 'id'],
-            'columns': ['id', 'order', 'name', 'group', 'key', 'higher_is_better', 'post_only', 'is_active'],
-            'editable': ['order', 'name', 'group', 'description', 'score_min', 'score_max', 'higher_is_better', 'post_only', 'is_active'],
-            'create': ['key', 'order', 'name', 'group', 'description', 'score_min', 'score_max', 'higher_is_better', 'post_only', 'is_active'],
-            'filters': {'higher_is_better': [True, False], 'post_only': [True, False], 'is_active': [True, False]},
-        },
-        'survey_scores': {
-            'model': ('surveys', 'SurveyScore'),
-            'title': '問卷成績',
-            'search': ['student__username', 'scale__name'],
-            'order': ['scale__order', 'phase', 'student__username'],
-            'columns': ['id', 'student', 'scale', 'phase', 'score', 'recorded_at'],
-            'editable': ['student', 'scale', 'phase', 'score', 'note'],
-            'create': ['student', 'scale', 'phase', 'score', 'note'],
-            'filters': {'phase': ['pre', 'post']},
+        'unit_summaries': {
+            'model': ('learning', 'StudentUnitSummary'),
+            'title': '學生單元彙總',
+            'search': ['student__username'],
+            'order': ['student__username', 'unit_number'],
+            'columns': ['id', 'student', 'unit_number', 'current_level', 'attempt_count',
+                        'latest_score', 'best_score', 'time_spent_seconds', 'last_activity_at'],
+            'editable': [], 'create': [],
+            'filters': {'unit_number': [1, 2, 3, 4, 5, 6, 7, 8], 'current_level': [1, 2, 3]},
         },
     }
 
@@ -944,6 +1153,11 @@ class AdminDataView(views.APIView):
         except (DjangoValidationError, IntegrityError, TypeError, ValueError) as exc:
             detail = getattr(exc, 'message_dict', None) or str(exc)
             return response.Response({'detail': detail}, status=status.HTTP_400_BAD_REQUEST)
+        from .models import DataChangeAudit
+        DataChangeAudit.objects.create(
+            actor=request.user, model_label=obj._meta.label, object_pk=str(obj.pk),
+            action='create', after=_audit_snapshot(obj),
+        )
         return response.Response(self.serialize(obj, config), status=status.HTTP_201_CREATED)
 
     def patch(self, request, key, pk):
@@ -951,6 +1165,7 @@ class AdminDataView(views.APIView):
         if not config:
             return response.Response({'detail': 'Unknown data model.'}, status=status.HTTP_404_NOT_FOUND)
         obj = get_object_or_404(model, pk=pk)
+        before = _audit_snapshot(obj)
         for name in config['editable']:
             if name not in request.data:
                 continue
@@ -966,10 +1181,20 @@ class AdminDataView(views.APIView):
         except (DjangoValidationError, IntegrityError, TypeError, ValueError) as exc:
             detail = getattr(exc, 'message_dict', None) or str(exc)
             return response.Response({'detail': detail}, status=status.HTTP_400_BAD_REQUEST)
+        from .models import DataChangeAudit
+        DataChangeAudit.objects.create(
+            actor=request.user, model_label=obj._meta.label, object_pk=str(obj.pk),
+            action='update', before=before, after=_audit_snapshot(obj),
+            reason=str(request.data.get('_change_reason') or '')[:500],
+        )
         return response.Response(self.serialize(obj, config))
 
     # 學生作答／學習歷程屬研究資料，受保護不開放從資料管理直接刪除
-    PROTECTED_STUDENT_DATA = {'attempts', 'progress', 'recommendations', 'adaptive', 'performance', 'enrollments'}
+    PROTECTED_STUDENT_DATA = {
+        'attempts', 'progress', 'recommendations', 'adaptive', 'unit_summaries',
+        'question_interactions', 'login_events', 'study_sessions', 'student_events',
+        'data_audits',
+    }
 
     def delete(self, request, key, pk):
         config, model = self.get_config(key)

@@ -36,12 +36,31 @@ class QuizSerializer(serializers.ModelSerializer):
         )
 
 
+class QuizSummarySerializer(serializers.ModelSerializer):
+    bank_size = serializers.SerializerMethodField()
+    is_ready_for_submission = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Quiz
+        fields = ('id', 'title', 'quiz_type', 'pass_score', 'bank_size',
+                  'is_ready_for_submission')
+
+    def get_bank_size(self, obj):
+        return obj.questions.count()
+
+    def get_is_ready_for_submission(self, obj):
+        return not obj.questions.filter(
+            question_type='coding', correct_answer__regex=r'^\s*$',
+        ).exists()
+
+
 class AnswerSubmitSerializer(serializers.Serializer):
     question_id = serializers.IntegerField()
     student_answer = serializers.CharField(allow_blank=True, trim_whitespace=False)
 
 
 class AttemptSubmitSerializer(serializers.Serializer):
+    attempt_id = serializers.IntegerField()
     quiz_id = serializers.IntegerField()
     answers = AnswerSubmitSerializer(many=True)
 

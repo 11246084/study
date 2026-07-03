@@ -226,12 +226,12 @@
       const nav = document.getElementById('lesson-nav');
       nav.innerHTML = units.map(u => {
         const isActive = u.unit_number === currentUnit;
-        const isLockedForUser = u.status === 'locked' && !canBrowseAll;
+        const isLockedForUser = (u.status === 'locked' || u.status === 'course_closed') && !canBrowseAll;
         if (isLockedForUser) {
           return `
             <li>
               <a style="opacity:0.35;cursor:not-allowed;pointer-events:none;display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:var(--radius-sm);font-size:0.88rem;color:#aaa">
-                <span class="num">🔒</span>${escapeHtml(u.unit_title)}
+                <span class="num">🔒</span>${escapeHtml(u.unit_title)}${u.status === 'course_closed' ? '（課程未開放）' : ''}
               </a>
             </li>`;
         }
@@ -262,7 +262,7 @@
       if (currentUnit < 8) {
         const nextUnit = units.find(u => u.unit_number === currentUnit + 1);
         // admin/teacher 可預覽鎖住的下一單元
-        const nextAccessible = nextUnit && nextUnit.lesson_id && (nextUnit.status !== 'locked' || canBrowseAll);
+        const nextAccessible = nextUnit && nextUnit.lesson_id && (!['locked', 'course_closed'].includes(nextUnit.status) || canBrowseAll);
         if (nextAccessible) {
           const btn = document.getElementById('next-btn');
           btn.href = `lesson.html?lesson_id=${nextUnit.lesson_id}${EMBEDDED_SFX}`;

@@ -1,7 +1,7 @@
 from rest_framework import generics, permissions
 from rest_framework.exceptions import PermissionDenied
-from .models import Course, Lesson, Enrollment
-from .serializers import CourseSerializer, CourseDetailSerializer, EnrollmentSerializer, LessonDetailSerializer
+from .models import Course, Lesson
+from .serializers import CourseSerializer, CourseDetailSerializer, LessonDetailSerializer
 from .access import can_access_lesson
 
 
@@ -17,22 +17,6 @@ class CourseDetailView(generics.RetrieveAPIView):
     permission_classes = [permissions.AllowAny]
 
 
-class EnrollView(generics.CreateAPIView):
-    serializer_class = EnrollmentSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def perform_create(self, serializer):
-        serializer.save(student=self.request.user)
-
-
-class MyCoursesView(generics.ListAPIView):
-    serializer_class = EnrollmentSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        return Enrollment.objects.filter(student=self.request.user)
-
-
 class LessonDetailView(generics.RetrieveAPIView):
     queryset = Lesson.objects.all()
     serializer_class = LessonDetailSerializer
@@ -41,5 +25,7 @@ class LessonDetailView(generics.RetrieveAPIView):
     def get_object(self):
         lesson = super().get_object()
         if not can_access_lesson(self.request, lesson):
-            raise PermissionDenied('請先完成前一單元評量。')
+            if not lesson.course.is_active:
+                raise PermissionDenied('課程尚未開放，請等待管理者開啟。')
+            raise PermissionDenied('此單元尚未開放，請等待老師開放。')
         return lesson

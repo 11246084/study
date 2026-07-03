@@ -101,19 +101,19 @@ python manage.py runserver
 
 | 分數 | 結果 |
 |------|------|
-| ≥ 90 | 升一級（最高 Level 3） |
-| 80–89 | 維持原級 |
-| < 80 | 降一級（最低 Level 1） |
+| ≥ 80 | 升一級（最高 Level 3） |
+| 60–79 | 維持原級 |
+| < 60 | 降一級（最低 Level 1） |
 
 ### 推薦卡片規則
 
 | 分數 | 當前等級 | 推薦 |
 |------|----------|------|
-| ≥ 90 | < 3 | 同單元，等級 +1（挑戰進階） |
-| ≥ 90 | = 3 | 下一單元 |
-| 80–89 | 任意 | 下一單元，同等級 |
-| < 80 | > 1 | 同單元，等級 −1（補救複習） |
-| < 80 | = 1 | 下一單元，Level 1 |
+| ≥ 80 | < 3 | 同單元，等級 +1（挑戰進階） |
+| ≥ 80 | = 3 | 下一單元 |
+| 60–79 | 任意 | 下一單元，同等級 |
+| < 60 | > 1 | 同單元，等級 −1（補救複習） |
+| < 60 | = 1 | 下一單元，Level 1 |
 
 ## 系統限制
 
@@ -141,6 +141,8 @@ python manage.py runserver
 
 三級教材統一維護在 `frontend/assets/materials/`；`seed_data` 會從這裡更新資料庫中的單元名稱、內容與時數。
 
+每個 Level、每個單元各有 100 題題庫；學生開始評量時由後端安全隨機抽出 10 題，該次作答只能提交這 10 題。
+
 程式題必須設定至少一個標準答案才能提交，不使用待人工評閱流程。
 
 ## 執行測試
@@ -149,3 +151,31 @@ python manage.py runserver
 cd backend
 ../venv/Scripts/python.exe manage.py test --settings=config.test_settings
 ```
+# Research activity data upgrade
+
+## Import student accounts
+
+Public registration is disabled. Export the enrollment spreadsheet as CSV UTF-8,
+then validate and import it from the backend directory:
+
+```powershell
+..\venv\Scripts\python manage.py import_students "C:\path\students.csv" --dry-run
+..\venv\Scripts\python manage.py import_students "C:\path\students.csv"
+```
+
+The student ID becomes both username and `student_id`. The normalized phone
+number is hashed as the initial password and is not stored. Students are sent to
+the password-change screen after their first login.
+
+After deploying this version, apply migrations and backfill metadata that can be
+recovered from existing rows:
+
+```bash
+cd /opt/study/backend
+../venv/bin/python manage.py migrate
+../venv/bin/python manage.py backfill_research_metadata
+```
+
+The command fills missing attempt/session UUIDs. It deliberately does not
+fabricate historical fine-grained activity events. New events are collected
+after this version is deployed.

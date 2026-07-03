@@ -1,11 +1,29 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import LearningProgress, AdaptiveRecommendation, PerformanceRecord, AdaptiveLearningPath, StudySession
+from .models import (LearningProgress, AdaptiveRecommendation,
+                     AdaptiveLearningPath, StudySession, StudentEvent,
+                     StudentUnitSummary, UnitRelease)
+
+
+@admin.register(StudentEvent)
+class StudentEventAdmin(admin.ModelAdmin):
+    list_display = ('event_type', 'student', 'lesson', 'occurred_at', 'duration_ms', 'event_uuid')
+    list_filter = ('event_type', 'occurred_at')
+    search_fields = ('student__username', 'event_uuid', 'page_url', 'metadata')
+    date_hierarchy = 'occurred_at'
+    readonly_fields = [f.name for f in StudentEvent._meta.fields]
+    list_select_related = ('student', 'lesson', 'quiz', 'question')
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(StudySession)
 class StudySessionAdmin(admin.ModelAdmin):
-    list_display = ('student', 'started_at', 'last_seen', 'duration_minutes')
+    list_display = ('student', 'started_at', 'last_seen', 'ended_at', 'active_seconds', 'duration_minutes')
     search_fields = ('student__username',)
     ordering = ('-started_at',)
 
@@ -40,7 +58,7 @@ class AdaptivePathAdmin(admin.ModelAdmin):
 
 @admin.register(AdaptiveRecommendation)
 class RecommendationAdmin(admin.ModelAdmin):
-    list_display = ('student', 'unit_info', 'reason_short', 'is_dismissed', 'created_at')
+    list_display = ('student', 'unit_info', 'impression_count', 'click_count', 'is_dismissed', 'created_at')
     list_filter = ('is_dismissed',)
     search_fields = ('student__username', 'recommended_lesson__title')
     list_editable = ('is_dismissed',)
@@ -78,14 +96,14 @@ class RecommendationAdmin(admin.ModelAdmin):
 
 @admin.register(LearningProgress)
 class LearningProgressAdmin(admin.ModelAdmin):
-    list_display = ('student', 'lesson', 'status', 'time_spent', 'last_accessed')
+    list_display = ('student', 'lesson', 'status', 'time_spent_seconds', 'last_accessed')
     list_filter = ('status',)
     search_fields = ('student__username', 'lesson__title')
     actions = ['reset_to_not_started', 'delete_selected_progress']
 
     @admin.action(description='↩ 重設選取進度為「未開始」')
     def reset_to_not_started(self, request, queryset):
-        count = queryset.update(status='not_started', time_spent=0)
+        count = queryset.update(status='not_started', time_spent_seconds=0)
         self.message_user(request, f'已重設 {count} 筆學習進度。')
 
     @admin.action(description='🗑 刪除選取的學習進度')
@@ -95,16 +113,21 @@ class LearningProgressAdmin(admin.ModelAdmin):
         self.message_user(request, f'已刪除 {count} 筆學習進度。')
 
 
-@admin.register(PerformanceRecord)
-class PerformanceAdmin(admin.ModelAdmin):
-    list_display = ('student', 'course', 'quiz_score_avg', 'proficiency_badge', 'recorded_at')
-    list_filter = ('proficiency',)
-    search_fields = ('student__username', 'course__title')
+@admin.register(StudentUnitSummary)
+class StudentUnitSummaryAdmin(admin.ModelAdmin):
+    list_display = ('student', 'unit_number', 'current_level', 'attempt_count',
+                    'latest_score', 'best_score', 'time_spent_seconds', 'last_activity_at')
+    list_filter = ('unit_number', 'current_level')
+    search_fields = ('student__username',)
+    ordering = ('student__username', 'unit_number')
+    readonly_fields = [f.name for f in StudentUnitSummary._meta.fields]
 
-    @admin.display(description='精熟度', ordering='proficiency')
-    def proficiency_badge(self, obj):
-        colors = {'high': '#c6f6d5', 'medium': '#eee', 'low': '#fed7d7'}
-        labels = {'high': '精熟', 'medium': '普通', 'low': '待加強'}
-        bg = colors.get(obj.proficiency, '#eee')
-        label = labels.get(obj.proficiency, obj.proficiency)
-        return format_html('<span style="background:{};padding:2px 8px;border-radius:4px;font-size:0.8em">{}</span>', bg, label)
+    def has_add_permission(self, request):
+        return False
+
+
+@admin.register(UnitRelease)
+class UnitReleaseAdmin(admin.ModelAdmin):
+    list_display = ('unit_number', 'is_open', 'opened_at', 'opened_by')
+    list_editable = ('is_open',)
+    ordering = ('unit_number',)

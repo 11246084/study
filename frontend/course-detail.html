@@ -75,9 +75,6 @@
           <div class="card-body">
             <div style="font-size:0.85rem;font-weight:700;margin-bottom:16px;color:#aaa">課程資訊</div>
             <div id="course-info-side"><p style="color:#aaa;font-size:0.9rem">載入中...</p></div>
-            <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:20px" id="enroll-btn">
-              選課開始學習
-            </button>
           </div>
         </div>
       </div>
@@ -96,7 +93,6 @@
     if (IS_EMBEDDED) document.body.classList.add('embedded');
 
     const diffMap = { beginner: '初級', intermediate: '中級', advanced: '進階' };
-    const typeMap = { video: '影片', text: '閱讀', exercise: '練習題' };
 
     if (!courseId) {
       window.location.href = IS_EMBEDDED ? 'courses.html?embedded=1' : 'courses.html';
@@ -157,9 +153,8 @@
           <div class="lesson-num">${l.order}</div>
           <div class="lesson-info">
             <div class="lesson-title-text">${escapeHtml(l.title)}</div>
-            <div class="lesson-meta">${typeMap[l.lesson_type] || l.lesson_type} · 約 ${l.duration_minutes} 分鐘</div>
+            <div class="lesson-meta">約 ${l.duration_minutes} 分鐘</div>
           </div>
-          <span class="lesson-badge">${typeMap[l.lesson_type] || l.lesson_type}</span>
         </div>
       `).join('');
     }
@@ -172,17 +167,6 @@
       }
       window.location.href = `lesson.html?lesson_id=${lessonId}${EMBEDDED_SFX}`;
     }
-
-    document.getElementById('enroll-btn')?.addEventListener('click', async () => {
-      if (!localStorage.getItem('access_token')) {
-        showToast('請先登入再選課', 'error');
-        setTimeout(() => window.location.href = 'login.html', 1200);
-        return;
-      }
-      const { ok, data } = await CoursesAPI.enroll(courseId);
-      showToast(ok ? '選課成功！' : (data?.detail || '你可能已選過此課程'), ok ? 'success' : 'error');
-      if (ok) setTimeout(() => window.location.href = '/', 1200);
-    });
 
     loadCourse();
   </script>

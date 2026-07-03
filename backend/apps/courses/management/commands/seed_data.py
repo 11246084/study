@@ -8,7 +8,7 @@ import re
 from pathlib import Path
 from django.core.management.base import BaseCommand
 from django.contrib.auth import get_user_model
-from apps.courses.models import Course, Lesson, Enrollment
+from apps.courses.models import Course, Lesson
 from apps.assessments.models import Quiz, Question, Choice
 
 User = get_user_model()
@@ -573,7 +573,7 @@ LEGACY_CODING_QUESTIONS = [
 
 # 新版四日課程題庫獨立維護，舊陣列僅保留供歷史版本查閱。
 from .curriculum_questions import (  # noqa: E402
-    CODING_QUESTIONS,
+    FILL_BLANK_QUESTIONS,
     QUIZ_QUESTIONS,
     SHORT_ANSWER_QUESTIONS,
 )
@@ -630,8 +630,7 @@ def _handle(self, *args, **options):
                 defaults={
                     'title': unit_title,
                     'content': content,
-                    'lesson_type': 'text',
-                    'duration_minutes': 30,
+                    'duration_minutes': 180,
                 }
             )
             if not l_created:
@@ -674,8 +673,8 @@ def _handle(self, *args, **options):
                     questions_bank = SHORT_ANSWER_QUESTIONS[order - 1]
                     q_type = 'short_answer'
                 else:
-                    questions_bank = CODING_QUESTIONS[order - 1]
-                    q_type = 'coding'
+                    questions_bank = FILL_BLANK_QUESTIONS[order - 1]
+                    q_type = 'fill_blank'
 
                 # 沒有作答紀錄時可安全同步新版題庫；已有研究資料則保留原題目。
                 if q_created or not quiz.attempts.exists():
@@ -691,6 +690,8 @@ def _handle(self, *args, **options):
                             points=points_per_question,
                             order=q_idx,
                             explanation=q_data.get('explanation', ''),
+                            concept=q_data.get('concept', ''),
+                            pattern=q_data.get('pattern', ''),
                         )
                         if q_type == 'multiple_choice':
                             for choice_text, is_correct in q_data['choices']:
@@ -704,5 +705,14 @@ def _handle(self, *args, **options):
                     self.stdout.write(self.style.WARNING(
                         f'      保留既有評量：{quiz.title}（已有作答紀錄）'
                     ))
+
+    # 建立 8 個單元的開放開關（預設關閉，由老師每日手動開放）
+    from apps.learning.models import UnitRelease
+    created_releases = 0
+    for unit in range(1, 9):
+        _, r_created = UnitRelease.objects.get_or_create(unit_number=unit)
+        created_releases += int(r_created)
+    if created_releases:
+        self.stdout.write(f'  建立 {created_releases} 筆單元開放開關（預設關閉，請從管理中心開放）')
 
     self.stdout.write(self.style.SUCCESS('\n[OK] 教材資料建立完成！'))

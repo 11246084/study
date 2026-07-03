@@ -366,14 +366,24 @@
       document.getElementById('stat-enrolled').textContent = completedCount;
       document.getElementById('stat-completed').textContent = `${completedCount} / 8`;
 
-      const statusLabel = { completed: '已完成', available: '進行中', locked: '尚未解鎖' };
-      const statusColor = { completed: '#38a169', available: 'var(--color-black)', locked: '#aaa' };
+      const statusLabel = { completed: '已完成', available: '進行中', locked: '尚未解鎖', course_closed: '課程尚未開放' };
+      const statusColor = { completed: '#38a169', available: 'var(--color-black)', locked: '#aaa', course_closed: '#b07a16' };
       const levelColors = { 1: '#ffcccc', 2: 'var(--color-lime)', 3: '#b3d9ff' };
       const levelShortName = {1:'L1 補救', 2:'L2 標準', 3:'L3 進階'};
 
       const unitList = document.getElementById('unit-path-list');
       unitList.innerHTML = units.map(u => {
-        const isLocked = u.status === 'locked';
+        const isLocked = u.status === 'locked' || u.status === 'course_closed';
+        // 老師／管理員的單元開放開關（學生看不到）
+        const releaseToggle = ADMIN_MODE ? `
+          <button type="button" data-unit-toggle="${u.unit_number}" data-open="${u.is_open ? 1 : 0}"
+            style="width:100%;margin-top:10px;padding:7px 8px;font-size:0.72rem;font-weight:800;
+                   border-radius:6px;cursor:pointer;font-family:inherit;
+                   border:2px solid ${u.is_open ? '#38a169' : '#ccc'};
+                   background:${u.is_open ? '#e6f7ec' : '#f4f4f4'};
+                   color:${u.is_open ? '#227a4d' : '#888'}">
+            ${u.is_open ? '✅ 已開放 — 點擊關閉' : '🔒 未開放 — 點擊開放'}
+          </button>` : '';
         const levelHeader = canSeeLevels ? `
           <div style="background:${levelColors[u.current_level]};padding:10px 16px;border-radius:var(--radius-md) var(--radius-md) 0 0;font-size:0.72rem;font-weight:800">
             ${escapeHtml(u.level_name)}
@@ -410,11 +420,30 @@
                     ${u.status === 'completed' ? '複習單元' : '開始學習 →'}
                   </a>
                   ${levelSwitcher}`
-                : `<div class="btn btn-outline" style="width:100%;justify-content:center;font-size:0.85rem;opacity:0.4;cursor:not-allowed">🔒 尚未解鎖</div>`
+                : `<div class="btn btn-outline" style="width:100%;justify-content:center;font-size:0.85rem;opacity:0.4;cursor:not-allowed">
+                    ${u.status === 'course_closed' ? '🔒 等待管理者開放' : '🔒 老師尚未開放'}
+                  </div>`
               }
+              ${releaseToggle}
             </div>
           </div>`;
       }).join('');
+
+      // 單元開放開關（老師手動控制每天開放的單元）
+      unitList.querySelectorAll('[data-unit-toggle]').forEach(button => {
+        button.addEventListener('click', async () => {
+          const unit = Number(button.dataset.unitToggle);
+          const nextOpen = button.dataset.open !== '1';
+          button.disabled = true;
+          const { ok, data } = await LearningAPI.setUnitRelease(unit, nextOpen);
+          if (ok) {
+            loadDashboard();
+          } else {
+            button.disabled = false;
+            alert((data && data.detail) || '切換失敗，請重試');
+          }
+        });
+      });
 
       // 推薦
       const recData = await LearningAPI.getRecommendations();
@@ -432,12 +461,20 @@
                 <div class="card-desc">${escapeHtml(canSeeLevels ? r.reason : '根據最近一次評量，建議前往這個單元繼續學習。')}</div>
               </div>
               <a href="lesson.html?lesson_id=${r.lesson_id}" data-rec-id="${r.id}" class="btn btn-lime rec-link" style="flex-shrink:0">前往學習 →</a>
+              <button type="button" data-rec-dismiss="${r.id}" class="btn btn-outline" style="margin-left:8px">忽略</button>
             </div>
           </div>
         `).join('');
         // 記錄推薦卡點擊（RQ-04 推薦接受度埋點）
         recList.querySelectorAll('.rec-link').forEach(a => {
+          LearningAPI.impressionRecommendation(a.dataset.recId);
           a.addEventListener('click', () => LearningAPI.clickRecommendation(a.dataset.recId));
+        });
+        recList.querySelectorAll('[data-rec-dismiss]').forEach(button => {
+          button.addEventListener('click', async () => {
+            await LearningAPI.dismissRecommendation(button.dataset.recDismiss);
+            button.closest('.card')?.remove();
+          });
         });
       }
 

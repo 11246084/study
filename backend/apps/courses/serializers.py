@@ -1,11 +1,11 @@
 from rest_framework import serializers
-from .models import Course, Lesson, Enrollment
+from .models import Course, Lesson
 
 
 class LessonSerializer(serializers.ModelSerializer):
     class Meta:
         model = Lesson
-        fields = ('id', 'title', 'lesson_type', 'order', 'duration_minutes')
+        fields = ('id', 'title', 'order', 'duration_minutes')
 
 
 class LessonDetailSerializer(serializers.ModelSerializer):
@@ -15,7 +15,7 @@ class LessonDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Lesson
-        fields = ('id', 'title', 'content', 'lesson_type', 'order',
+        fields = ('id', 'title', 'content', 'order',
                   'duration_minutes', 'course_id', 'course_title', 'course_difficulty')
 
 
@@ -26,7 +26,7 @@ class CourseSerializer(serializers.ModelSerializer):
     class Meta:
         model = Course
         fields = ('id', 'title', 'description', 'teacher_name', 'difficulty',
-                  'cover_image', 'is_active', 'lesson_count', 'created_at')
+                  'is_active', 'lesson_count', 'created_at')
 
     def get_lesson_count(self, obj):
         return obj.lessons.count()
@@ -37,12 +37,3 @@ class CourseDetailSerializer(CourseSerializer):
 
     class Meta(CourseSerializer.Meta):
         fields = CourseSerializer.Meta.fields + ('lessons',)
-
-
-class EnrollmentSerializer(serializers.ModelSerializer):
-    course_title = serializers.CharField(source='course.title', read_only=True)
-
-    class Meta:
-        model = Enrollment
-        fields = ('id', 'course', 'course_title', 'enrolled_at', 'progress')
-        read_only_fields = ('enrolled_at', 'progress')
