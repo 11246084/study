@@ -77,6 +77,18 @@
     .quiz-actions .btn { min-width: 160px; }
     .timer { font-size: 0.9rem; color: var(--color-gray-md); }
     .timer span { font-weight: 700; color: var(--color-black); }
+
+    @media (max-width: 768px) {
+      .quiz-wrap { padding: 24px 14px; }
+      .quiz-header { margin-bottom: 28px; }
+      .question-card { padding: 22px 18px; border-radius: var(--radius-md); }
+      .question-text { font-size: 1rem; }
+      .choice-label { padding: 13px 14px; gap: 12px; }
+      /* 底部作答列：計時器在上、提交鈕整寬在下，窄機不互擠 */
+      .quiz-actions { flex-direction: column; align-items: stretch; gap: 10px; padding: 16px 0 14px; }
+      .quiz-actions .timer { text-align: center; }
+      .quiz-actions .btn { min-width: 0; width: 100%; justify-content: center; }
+    }
   </style>
 </head>
 <body style="background:var(--color-gray)">

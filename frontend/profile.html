@@ -46,6 +46,14 @@
       background: var(--color-lime); color: var(--color-black);
       padding: 3px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 700;
     }
+    .profile-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+
+    @media (max-width: 768px) {
+      /* 側欄在手機隱藏（登出改由頂部 navbar 提供），版面收成單欄，避免留下空的 240px 欄 */
+      .profile-layout { grid-template-columns: 1fr; }
+      .profile-cols { grid-template-columns: 1fr; }
+      .profile-card { padding: 22px 18px; }
+    }
   </style>
 </head>
 <body>
@@ -78,7 +86,7 @@
       <div class="page-title">個人資料</div>
       <div class="page-subtitle">管理你的帳號資訊</div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start">
+      <div class="profile-cols">
 
         <!-- 左：頭像 + 基本資料 -->
         <div>

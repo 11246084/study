@@ -48,6 +48,16 @@
       white-space: pre-wrap;
     }
     .result-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 32px; }
+
+    @media (max-width: 768px) {
+      .result-wrap { padding: 24px 14px; }
+      .score-card { padding: 28px 20px; }
+      .score-big { font-size: 3.6rem; }
+      .answer-item { padding: 16px 14px; }
+      #next-lesson-banner { padding: 20px 18px !important; }
+      #next-lesson-banner .btn { width: 100%; justify-content: center; }
+      .result-actions .btn { flex: 1 1 100%; justify-content: center; }
+    }
   </style>
 </head>
 <body style="background:var(--color-gray)">

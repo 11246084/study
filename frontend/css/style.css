@@ -303,7 +303,8 @@ img { max-width: 100%; display: block; }
 
 /* ===== Responsive ===== */
 @media (max-width: 768px) {
-  .navbar { padding: 0 20px; }
+  .navbar { padding: 0 16px; height: 60px; gap: 12px; }
+  .navbar-logo { font-size: 1.2rem; }
   .navbar-links { display: none; }
   .hero { padding: 48px 20px 40px; }
   .section { padding: 40px 20px; }
@@ -317,10 +318,24 @@ img { max-width: 100%; display: block; }
   .stat-card { padding: 16px; }
   .stat-card .stat-number { font-size: 1.6rem; }
   /* 橫排卡片（評量入口、單元上下頁）允許換行，按鈕掉到下一行而不是擠在右邊 */
-  .quiz-banner { flex-wrap: wrap; }
+  .quiz-banner { flex-wrap: wrap; padding: 20px; }
   .quiz-banner .btn { width: 100%; justify-content: center; }
   .lesson-footer { flex-wrap: wrap; gap: 10px; }
+  .lesson-footer .btn { flex: 1; justify-content: center; }
   .page-title { font-size: 1.4rem; }
+  /* 觸控友善：主要按鈕加大點擊區、避免長字溢出 */
+  .btn { padding: 12px 22px; }
+  .card-grid { grid-template-columns: 1fr; }
+}
+
+/* 小尺寸手機（單欄、更緊湊） */
+@media (max-width: 480px) {
+  .navbar-logo { font-size: 1.1rem; }
+  .stats-row { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .stat-card { padding: 14px; }
+  .stat-card .stat-number { font-size: 1.45rem; }
+  .form-card { margin: 20px 12px; padding: 22px 16px; }
+  .btn-nav { padding: 7px 14px; }
 }
 
 /* ===== UI/UX Polish ===== */

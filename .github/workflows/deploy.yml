@@ -22,6 +22,7 @@ jobs:
         run: |
           cd /opt/study/backend
           /opt/study/venv/bin/python manage.py migrate
+          /opt/study/venv/bin/python manage.py seed_data
           /opt/study/venv/bin/python manage.py collectstatic --noinput
 
       - name: Restart services

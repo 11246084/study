@@ -77,8 +77,15 @@
       margin-top: 40px; gap: 20px;
     }
     @media (max-width: 768px) {
-      .lesson-layout { grid-template-columns: 1fr; padding: 20px; }
+      .lesson-layout { grid-template-columns: 1fr; padding: 20px 16px; gap: 0; }
       .lesson-sidebar { display: none; }
+      .md-content { font-size: 0.95rem; }
+      .md-content h1 { font-size: 1.6rem; }
+      .md-content h2 { font-size: 1.2rem; margin-top: 28px; padding-top: 28px; }
+      /* 教材表格在窄機可橫向捲動，不撐破版面 */
+      .md-content table { display: block; overflow-x: auto; white-space: nowrap; }
+      .quiz-banner { padding: 20px; }
+      .quiz-banner .btn { width: 100%; justify-content: center; }
     }
   </style>
 </head>
