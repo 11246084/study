@@ -33,18 +33,19 @@ disk_free_pct=$(( 100 - disk_used_pct ))
 loadavg=$(awk '{print $1}' /proc/loadavg)
 swap_used=$(awk '/^SwapTotal:/{t=$2} /^SwapFree:/{f=$2} END{print (t-f)/1024}' /proc/meminfo)
 
-# gunicorn + mysqld resident memory (MB), if present.
+# gunicorn + database resident memory (MB), if present.
+# The DB may be mysqld (MySQL) or mariadbd (MariaDB, the Rocky Linux default).
 gunicorn_mb=$(ps -C gunicorn -o rss= 2>/dev/null | awk '{s+=$1} END{printf "%d", s/1024}')
-mysql_mb=$(ps -C mysqld -o rss= 2>/dev/null | awk '{s+=$1} END{printf "%d", s/1024}')
+db_mb=$(ps -C mysqld -C mariadbd -o rss= 2>/dev/null | awk '{s+=$1} END{printf "%d", s/1024}')
 
-line="$(date '+%F %T') mem_avail=${mem_avail_pct}% disk_free=${disk_free_pct}% load1=${loadavg} swap_used=${swap_used%.*}MB gunicorn=${gunicorn_mb:-0}MB mysql=${mysql_mb:-0}MB"
+line="$(date '+%F %T') mem_avail=${mem_avail_pct}% disk_free=${disk_free_pct}% load1=${loadavg} swap_used=${swap_used%.*}MB gunicorn=${gunicorn_mb:-0}MB db=${db_mb:-0}MB"
 echo "$line" >> "$LOG"
 
 # ---- Alerting: replace the echo with your notifier (see README-monitor.md) ----
 ALERT_CMD() { echo "[ALERT] $1" >> "$LOG"; }
 
 if [ "$mem_avail_pct" -lt "$MEM_WARN" ]; then
-  ALERT_CMD "記憶體吃緊: available=${mem_avail_pct}% (gunicorn=${gunicorn_mb}MB mysql=${mysql_mb}MB)"
+  ALERT_CMD "記憶體吃緊: available=${mem_avail_pct}% (gunicorn=${gunicorn_mb}MB db=${db_mb}MB)"
 fi
 if [ "$disk_free_pct" -lt "$DISK_WARN" ]; then
   ALERT_CMD "硬碟快滿: free=${disk_free_pct}%"
