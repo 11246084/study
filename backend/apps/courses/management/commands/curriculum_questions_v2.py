@@ -649,6 +649,7 @@ from .curriculum_u4 import U4_L1, U4_L2, U4_L3  # noqa: E402
 from .curriculum_u5 import U5_L1, U5_L2, U5_L3  # noqa: E402
 from .curriculum_u6 import U6_L1, U6_L2, U6_L3  # noqa: E402
 from .curriculum_u7 import U7_L1, U7_L2, U7_L3  # noqa: E402
+from .curriculum_u8 import U8_L1, U8_L2, U8_L3  # noqa: E402
 
 MIXED_BANKS = {
     ('beginner', 1): _all_mc(U1_L1),
@@ -672,4 +673,7 @@ MIXED_BANKS = {
     ('beginner', 7): _all_mc(U7_L1),
     ('intermediate', 7): _all_mc(U7_L2),
     ('advanced', 7): _all_mc(U7_L3),
+    ('beginner', 8): _all_mc(U8_L1),
+    ('intermediate', 8): _all_mc(U8_L2),
+    ('advanced', 8): _all_mc(U8_L3),
 }

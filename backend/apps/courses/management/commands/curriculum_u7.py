@@ -115,7 +115,7 @@ U7_L1 = [
     fb('BMI 計算函式。\n\n```python\ndef bmi(weight, height):\n    return weight / height __1__ 2\n\nprint(round(bmi(50, 1.6), 1))   # 19.5\n```', '**'),
     fb('把總分函式用在三科成績。\n\n```python\ndef total(a, b, c):\n    return a + b + c\n\nprint(total(70, 80, __1__))   # 240\n```', '90'),
     fb('回傳倒數第二個元素。\n\n```python\ndef second_last(items):\n    return items[__1__]\n\nprint(second_last([1, 2, 3, 4]))   # 3\n```', '-2'),
-    fb('沒有回傳值的函式，接到的會是？\n\n```python\ndef log():\n    print("記錄")\n\nvalue = log()   # 記錄\nprint(value)   # __1__\n```\n\n（填第二行輸出）', 'None'),
+    fb('沒有 return 的函式，呼叫後得到的值是？\n\n```python\ndef calc(n):\n    result = n + 1\n\nprint(calc(5))   # __1__\n```', 'None'),
     fb('回傳及格科目數。\n\n```python\ndef pass_count(scores):\n    count = 0\n    for s in scores:\n        if s >= 60:\n            count += 1\n    return __1__\n\nprint(pass_count([50, 70, 90]))   # 2\n```', 'count'),
     fb('計算週薪。\n\n```python\ndef weekly_pay(hourly, hours):\n    return hourly * __1__\n\nprint(weekly_pay(190, 40))   # 7600\n```', 'hours'),
     fb('先定義才能呼叫：把呼叫移到定義之後。\n\n```python\ndef hi():\n    return "HI"\n\nprint(__1__())   # HI\n```', 'hi'),
@@ -425,5 +425,5 @@ U7_L3 = [
     fb('回傳「是否全部及格」。\n\n```python\ndef all_pass(scores):\n    return __1__(s >= 60 for s in scores)\n\nprint(all_pass([70, 80, 61]))   # True\n```', 'all'),
     fb('回傳「是否有人不及格」。\n\n```python\ndef any_fail(scores):\n    return __1__(s < 60 for s in scores)\n\nprint(any_fail([70, 50, 80]))   # True\n```', 'any'),
     fb('把函式串成資料清理管線。\n\n```python\ndef clean(t):\n    return t.strip()\n\ndef to_num(t):\n    return int(t)\n\nraw = " 42 "\nprint(to_num(__1__(raw)) + 8)   # 50\n```', 'clean'),
+    fb('把重複的稅額計算包成函式並套用。\n\n```python\ndef with_tax(price):\n    return round(price * 1.05)\n\nprint(with_tax(200) + with_tax(100))   # 315\n```\n\n空格：稅率 5% 對應的乘數是 1.__1__。', '05'),
 ]
-
