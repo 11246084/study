@@ -577,6 +577,18 @@ from .curriculum_questions import (  # noqa: E402
     QUIZ_QUESTIONS,
     SHORT_ANSWER_QUESTIONS,
 )
+# v2 混合題庫（選擇＋填空同庫）；已改版的單元優先使用
+from .curriculum_questions_v2 import MIXED_BANKS  # noqa: E402
+
+
+def _shuffled_choices(content, choices):
+    """以題目內容雜湊做確定性洗牌，避免正解永遠排在選項 A。"""
+    import hashlib
+    import random
+    rng = random.Random(int(hashlib.md5(content.encode('utf-8')).hexdigest(), 16))
+    shuffled = list(choices)
+    rng.shuffle(shuffled)
+    return shuffled
 
 def _handle(self, *args, **options):
     self.stdout.write('開始建立教材資料...')
@@ -666,7 +678,11 @@ def _handle(self, *args, **options):
 
             if order - 1 < len(QUIZ_QUESTIONS):
                 difficulty = course_data['difficulty']
-                if difficulty == 'beginner':
+                mixed_bank = MIXED_BANKS.get((difficulty, order))
+                if mixed_bank:
+                    questions_bank = mixed_bank
+                    q_type = None  # v2 題庫每題自帶 type
+                elif difficulty == 'beginner':
                     questions_bank = QUIZ_QUESTIONS[order - 1]
                     q_type = 'multiple_choice'
                 elif difficulty == 'intermediate':
@@ -682,10 +698,11 @@ def _handle(self, *args, **options):
                         quiz.questions.all().delete()
                     points_per_question = 100.0 / len(questions_bank)
                     for q_idx, q_data in enumerate(questions_bank, start=1):
+                        question_type = q_data.get('type') or q_type
                         question = Question.objects.create(
                             quiz=quiz,
                             content=q_data['content'],
-                            question_type=q_type,
+                            question_type=question_type,
                             correct_answer=q_data.get('correct_answer', ''),
                             points=points_per_question,
                             order=q_idx,
@@ -693,14 +710,16 @@ def _handle(self, *args, **options):
                             concept=q_data.get('concept', ''),
                             pattern=q_data.get('pattern', ''),
                         )
-                        if q_type == 'multiple_choice':
-                            for choice_text, is_correct in q_data['choices']:
+                        if question_type == 'multiple_choice':
+                            for choice_text, is_correct in _shuffled_choices(
+                                    q_data['content'], q_data['choices']):
                                 Choice.objects.create(
                                     question=question,
                                     content=choice_text,
                                     is_correct=is_correct,
                                 )
-                    self.stdout.write(f'      同步評量：{quiz.title}（{len(questions_bank)} 題，{q_type}）')
+                    bank_label = '混合題庫' if mixed_bank else q_type
+                    self.stdout.write(f'      同步評量：{quiz.title}（{len(questions_bank)} 題，{bank_label}）')
                 else:
                     self.stdout.write(self.style.WARNING(
                         f'      保留既有評量：{quiz.title}（已有作答紀錄）'

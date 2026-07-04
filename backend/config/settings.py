@@ -78,6 +78,10 @@ DATABASES = {
 
 AUTH_USER_MODEL = 'users.User'
 
+# MySQL utf8mb4_unicode_ci 定序對大小寫／全形半形不敏感，
+# 改用逐字比對的認證後端，避免「ＴｅＸｔ1」也能登入 text1
+AUTHENTICATION_BACKENDS = ['apps.users.authentication.ExactUsernameBackend']
+
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},

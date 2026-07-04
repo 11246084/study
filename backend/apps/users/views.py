@@ -5,6 +5,8 @@ from django.db.models import Avg, Count, F, Max, Min, Q, ProtectedError
 from django.shortcuts import get_object_or_404
 from django.utils.crypto import get_random_string
 from django.utils.dateparse import parse_datetime
+from django.utils import timezone
+from datetime import timedelta
 import json
 from rest_framework import generics, permissions, response, status, views
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -199,8 +201,9 @@ def _iso_week(dt):
 
 def _summarize_sessions(session_values):
     """session_values: iterable of dict(started_at, last_seen[, student_id])。
-    回傳每週次數/時長與每次平均時長。"""
+    回傳每週次數/時長、最近活動週的每日時長與每次平均時長。"""
     weekly = {}
+    daily_minutes = {}
     seen_student_week = set()
     total_min = 0.0
     n = 0
@@ -208,25 +211,39 @@ def _summarize_sessions(session_values):
         n += 1
         mins = max(0.0, (s['last_seen'] - s['started_at']).total_seconds() / 60)
         total_min += mins
-        wk = _iso_week(s['started_at'])
+        # USE_TZ=False 時資料庫回傳本地 naive datetime；若未來改成 aware
+        # datetime，才需要轉換到專案時區。
+        local_started = (timezone.localtime(s['started_at'])
+                         if timezone.is_aware(s['started_at']) else s['started_at'])
+        wk = _iso_week(local_started)
         bucket = weekly.setdefault(wk, {'sessions': 0, 'minutes': 0.0})
         bucket['sessions'] += 1
         bucket['minutes'] += mins
+        day = local_started.date()
+        daily_minutes[day] = daily_minutes.get(day, 0.0) + mins
         if 'student_id' in s:
             seen_student_week.add((s['student_id'], wk))
     if n == 0:
-        return {'status': 'awaiting', 'weekly': [], 'sessions_total': 0,
+        return {'status': 'awaiting', 'weekly': [], 'daily': [], 'sessions_total': 0,
                 'minutes_total': 0, 'avg_session_minutes': None,
                 'avg_sessions_per_active_week': None, 'avg_minutes_per_active_week': None,
                 'note': '尚無使用時段資料；學生登入並使用系統後開始累積（每 2 分鐘一次心跳）。'}
     weekly_list = [{'week': wk, 'sessions': weekly[wk]['sessions'],
                     'minutes': round(weekly[wk]['minutes'], 1)} for wk in sorted(weekly)]
+    latest_day = max(daily_minutes)
+    week_start = latest_day - timedelta(days=latest_day.weekday())
+    daily_list = [
+        {'date': (week_start + timedelta(days=i)).isoformat(),
+         'minutes': round(daily_minutes.get(week_start + timedelta(days=i), 0.0), 1)}
+        for i in range(7)
+    ]
     # 班級用 (學生,週) 配對為分母；個人用「週」為分母
     pairs = len(seen_student_week) if seen_student_week else len(weekly)
     pairs = pairs or 1
     return {
         'status': 'ready',
         'weekly': weekly_list,
+        'daily': daily_list,
         'sessions_total': n,
         'minutes_total': round(total_min, 1),
         'avg_session_minutes': round(total_min / n, 1),
@@ -246,83 +263,6 @@ def _usage_student_summary(student):
     from apps.learning.models import StudySession
     rows = StudySession.objects.filter(student=student).values('started_at', 'last_seen')
     return _summarize_sessions(rows)
-
-
-CONSTRUCTED_TYPES = ['short_answer', 'fill_blank']  # 建構型題型：Level 2 簡答、Level 3 程式填空
-
-
-def _problem_solving_class_summary(unit_titles):
-    """以建構型題目（簡答＋程式填空）表現衡量解題能力（RQ：解決問題能力）。
-    簡答一題全對全錯；填空按答對格數比例給分，故統一以「得分率」呈現。"""
-    from django.db.models import Count, Sum
-    from apps.assessments.models import Answer
-    base = Answer.objects.filter(
-        attempt__student__role='student',
-        question__question_type__in=CONSTRUCTED_TYPES,
-    )
-    total = base.count()
-    if total == 0:
-        return {'status': 'awaiting',
-                'note': '尚無建構型題目（簡答／填空）作答資料；學生作答後顯示解題能力。'}
-    sa = base.filter(question__question_type='short_answer')
-    sa_total = sa.count()
-    sa_correct = sa.filter(is_correct=True).count()
-    fb = base.filter(question__question_type='fill_blank').aggregate(
-        earned=Sum('points_earned'), possible=Sum('question__points'), n=Count('id'))
-    # 逐單元建構型得分率
-    by_unit = []
-    for r in (base.values(unit=F('question__quiz__lesson__order'))
-              .annotate(earned=Sum('points_earned'), possible=Sum('question__points'), t=Count('id'))
-              .order_by('unit')):
-        by_unit.append({
-            'unit': r['unit'], 'title': unit_titles.get(r['unit'], f"單元 {r['unit']}"),
-            'rate': round(r['earned'] / r['possible'] * 100, 1) if r['possible'] else None,
-            'n': r['t'],
-        })
-    return {
-        'status': 'ready',
-        'short_answer_accuracy': round(sa_correct / sa_total * 100, 1) if sa_total else None,
-        'short_answer_n': sa_total,
-        'fill_blank_rate': round(fb['earned'] / fb['possible'] * 100, 1) if fb['possible'] else None,
-        'fill_blank_n': fb['n'],
-        'by_unit': by_unit,
-        'note': '解題能力以建構型題目衡量：簡答（Level 2）為答對率、程式填空（Level 3）為逐格得分率。',
-    }
-
-
-def _constructed_stats(qs):
-    """簡答答對率＋填空得分率（qs 需已過濾為 CONSTRUCTED_TYPES）。"""
-    from django.db.models import Count, Sum
-    sa = qs.filter(question__question_type='short_answer')
-    sa_total = sa.count()
-    sa_correct = sa.filter(is_correct=True).count()
-    fb = qs.filter(question__question_type='fill_blank').aggregate(
-        earned=Sum('points_earned'), possible=Sum('question__points'), n=Count('id'))
-    return {
-        'short_answer_accuracy': round(sa_correct / sa_total * 100, 1) if sa_total else None,
-        'short_answer_n': sa_total,
-        'fill_blank_rate': round(fb['earned'] / fb['possible'] * 100, 1) if fb['possible'] else None,
-        'fill_blank_n': fb['n'],
-    }
-
-
-def _problem_solving_student_summary(student):
-    from apps.assessments.models import Answer
-    base = Answer.objects.filter(
-        attempt__student=student,
-        question__question_type__in=CONSTRUCTED_TYPES,
-    )
-    if base.count() == 0:
-        return {'status': 'awaiting', 'note': '尚無建構型題目作答資料。'}
-    # 班級平均供對照
-    class_stats = _constructed_stats(Answer.objects.filter(
-        attempt__student__role='student', question__question_type__in=CONSTRUCTED_TYPES))
-    return {
-        'status': 'ready',
-        **_constructed_stats(base),
-        'class_short_answer_accuracy': class_stats['short_answer_accuracy'],
-        'class_fill_blank_rate': class_stats['fill_blank_rate'],
-    }
 
 
 class ResearchAnalyticsView(views.APIView):
@@ -359,6 +299,7 @@ class ResearchAnalyticsView(views.APIView):
         students = User.objects.filter(role='student')
         N = students.count()
         unit_titles = self._unit_titles()
+        username_by_id = dict(students.values_list('id', 'username'))
 
         completed_at_qs = QuizAttempt.objects.filter(
             student__role='student', completed_at__isnull=False
@@ -382,11 +323,22 @@ class ResearchAnalyticsView(views.APIView):
             mins = max(0.0, (s['last_seen'] - s['started_at']).total_seconds() / 60)
             time_by_student[s['student_id']] = time_by_student.get(s['student_id'], 0.0) + mins
 
-        # ── unit_difficulty（ready）─────────────────────────────
+        # ── unit_difficulty：每位學生每單元只採第一次完成作答 ──
+        # 重做資料留給 retake 分析，避免重做次數多的學生在瓶頸圖被重複加權。
+        first_attempt_ids = []
+        seen_student_units = set()
+        for attempt in completed_at_qs.values(
+                'id', 'student_id', unit=F('quiz__lesson__order')).order_by(
+                    'student_id', 'quiz__lesson__order', 'completed_at', 'id'):
+            key = (attempt['student_id'], attempt['unit'])
+            if attempt['unit'] is not None and key not in seen_student_units:
+                seen_student_units.add(key)
+                first_attempt_ids.append(attempt['id'])
         diff_rows = {
-            r['unit']: r for r in Answer.objects.filter(attempt__student__role='student')
+            r['unit']: r for r in Answer.objects.filter(attempt_id__in=first_attempt_ids)
             .values(unit=F('question__quiz__lesson__order'))
-            .annotate(total=Count('id'), correct=Count('id', filter=Q(is_correct=True)))
+            .annotate(total=Count('id'), correct=Count('id', filter=Q(is_correct=True)),
+                      students=Count('attempt__student_id', distinct=True))
         }
         unit_difficulty = []
         for u in range(1, 9):
@@ -395,6 +347,7 @@ class ResearchAnalyticsView(views.APIView):
             unit_difficulty.append({
                 'unit': u, 'title': unit_titles.get(u, f'單元 {u}'),
                 'rate': rate, 'samples': row['total'] if row else 0,
+                'students': row['students'] if row else 0,
                 'alert': rate is not None and rate < 60,
             })
         diff_status = 'ready' if any(r['samples'] for r in unit_difficulty) else 'awaiting'
@@ -464,6 +417,7 @@ class ResearchAnalyticsView(views.APIView):
         ):
             pairs.setdefault((a['student_id'], a['quiz_id']), []).append(a)
         retake_units = {}
+        retake_details = []
         first_sum = second_sum = n_pairs = 0
         for (sid, qid), lst in pairs.items():
             if len(lst) < 2:
@@ -476,10 +430,22 @@ class ResearchAnalyticsView(views.APIView):
             ru['first'] += first['score']
             ru['second'] += second['score']
             ru['n'] += 1
+            delta = second['score'] - first['score']
+            retake_details.append({
+                'student_id': sid,
+                'username': username_by_id.get(sid, str(sid)),
+                'unit': first['unit'],
+                'title': unit_titles.get(first['unit'], f"單元 {first['unit']}"),
+                'first': round(first['score'], 1),
+                'second': round(second['score'], 1),
+                'delta': round(delta, 1),
+            })
+        retake_details.sort(key=lambda row: (row['username'], row['unit']))
         retake = {
             'n_pairs': n_pairs,
             'avg_first': round(first_sum / n_pairs, 1) if n_pairs else None,
             'avg_second': round(second_sum / n_pairs, 1) if n_pairs else None,
+            'details': retake_details,
             'units': [
                 {'unit': u, 'title': unit_titles.get(u, f'單元 {u}'),
                  'first': round(v['first'] / v['n'], 1), 'second': round(v['second'] / v['n'], 1)}
@@ -499,50 +465,40 @@ class ResearchAnalyticsView(views.APIView):
         }
         rec_status = 'ready' if rec_clicked else 'awaiting'
 
-        # ── engagement（awaiting until time accrues）────────────
-        engagement_points = [
-            {'hours': round(time_by_student.get(sid, 0) / 60, 1),
-             'score': round(avg_score_by_student[sid], 1)}
-            for sid in avg_score_by_student
-            if time_by_student.get(sid, 0) > 0
-        ]
-        eng_status = 'ready' if engagement_points else 'awaiting'
+        # ── engagement：使用時間排名 + 班級單元分數分布 ────────
+        usage_ranking = sorted([
+            {'student_id': sid, 'username': username_by_id.get(sid, str(sid)),
+             'minutes': round(minutes, 1)}
+            for sid, minutes in time_by_student.items() if minutes > 0
+        ], key=lambda row: (-row['minutes'], row['username']))
 
-        # ── risk（ready, 規則式）─────────────────────────────────
-        early = {
-            r['student_id']: r['a']
-            for r in completed_at_qs.filter(quiz__lesson__order__lte=3)
-            .values('student_id').annotate(a=Avg('score'))
-        }
-        risk_high, risk_mid, risk_low = [], [], []
-        username_by_id = dict(students.values_list('id', 'username'))
-        for sid, avg in early.items():
-            entry = {'id': sid, 'username': username_by_id.get(sid), 'score': round(avg, 1)}
-            if avg < 60:
-                risk_high.append(entry)
-            elif avg <= 75:
-                risk_mid.append(entry)
-            else:
-                risk_low.append(entry)
-        risk = {
-            'high': len(risk_high), 'mid': len(risk_mid), 'low': len(risk_low),
-            'high_list': sorted(risk_high, key=lambda x: x['score']),
-        }
-        risk_status = 'ready' if early else 'awaiting'
+        score_by_student = {}
+        for row in completed_at_qs.values(
+                'student_id', unit=F('quiz__lesson__order')).annotate(avg=Avg('score')):
+            if row['unit'] is not None and 1 <= row['unit'] <= 8:
+                score_by_student.setdefault(row['student_id'], {})[row['unit']] = round(row['avg'], 1)
+        def percentile(values, ratio):
+            if not values:
+                return None
+            ordered = sorted(values)
+            pos = (len(ordered) - 1) * ratio
+            lower = int(pos)
+            upper = min(lower + 1, len(ordered) - 1)
+            weight = pos - lower
+            return ordered[lower] * (1 - weight) + ordered[upper] * weight
 
-        # ── learning_curve：各單元班級平均分（四天課程走勢）─────
-        curve_rows = {
-            r['unit']: r for r in completed_at_qs
-            .values(unit=F('quiz__lesson__order'))
-            .annotate(avg=Avg('score'), n=Count('id'))
-        }
-        learning_curve = {
-            'status': 'ready' if curve_rows else 'awaiting',
-            'rows': [{'unit': u, 'title': unit_titles.get(u, f'單元 {u}'),
-                      'avg': round(curve_rows[u]['avg'], 1) if u in curve_rows else None,
-                      'n': curve_rows[u]['n'] if u in curve_rows else 0}
-                     for u in range(1, 9)],
-        }
+        score_summary = []
+        for unit in range(1, 9):
+            values = [scores[unit] for scores in score_by_student.values() if unit in scores]
+            score_summary.append({
+                'unit': unit,
+                'avg': round(sum(values) / len(values), 1) if values else None,
+                'q1': round(percentile(values, .25), 1) if values else None,
+                'q3': round(percentile(values, .75), 1) if values else None,
+                'n': len(values),
+            })
+        score_ready = any(row['n'] for row in score_summary)
+        eng_status = 'ready' if usage_ranking or score_ready else 'awaiting'
 
         # ── attempt_effort：作答時長與放棄率 ─────────────────────
         eff = {u: {'mins': 0.0, 'n_mins': 0, 'completed': 0, 'abandoned': 0}
@@ -620,7 +576,6 @@ class ResearchAnalyticsView(views.APIView):
              'status': 'ready' if avg_hours else 'awaiting', 'note': '埋點累積中'},
             {'label': '推薦點擊率', 'value': recommendation_uptake['click_rate'], 'unit': '%',
              'status': rec_status, 'note': '埋點累積中'},
-            {'label': '高風險學生', 'value': risk['high'], 'unit': '人', 'status': risk_status},
             {'label': '樣本數', 'value': N, 'unit': '人', 'status': 'ready'},
         ]
 
@@ -648,13 +603,16 @@ class ResearchAnalyticsView(views.APIView):
             'misconceptions': {'status': misc_status, 'rows': misconceptions},
             'retake': {'status': retake_status, **retake},
             'recommendation_uptake': {'status': rec_status, **recommendation_uptake},
-            'engagement': {'status': eng_status, 'points': engagement_points},
-            'risk': {'status': risk_status, **risk},
+            'engagement': {
+                'status': eng_status,
+                'usage_status': 'ready' if usage_ranking else 'awaiting',
+                'score_status': 'ready' if score_ready else 'awaiting',
+                'usage_ranking': usage_ranking,
+                'score_summary': score_summary,
+            },
             'level_flow': level_flow,
-            'learning_curve': learning_curve,
             'attempt_effort': attempt_effort,
             'usage': _usage_class_summary(),
-            'problem_solving': _problem_solving_class_summary(unit_titles),
             'event_analytics': event_analytics,
         })
 
@@ -689,11 +647,15 @@ class ResearchAnalyticsView(views.APIView):
                 'level': difficulty_to_level.get(row['quiz__lesson__course__difficulty'], 2),
                 'score': round(row['score'], 1),
                 'completed_at': row['completed_at'],
+                'duration_seconds': max(0, round(
+                    (row['completed_at'] - row['started_at']).total_seconds()
+                )) if row['completed_at'] and row['started_at'] else None,
             }
             for row in attempts.values(
                 'quiz__lesson__order',
                 'quiz__lesson__course__difficulty',
                 'score',
+                'started_at',
                 'completed_at',
             ).order_by('completed_at', 'id')
         ]
@@ -729,62 +691,52 @@ class ResearchAnalyticsView(views.APIView):
             for day, m in sorted(daily.items())
         ]
 
-        # 個人迷思命中（三題型：選擇誘答／簡答錯誤／填空逐格）
+        # 個人完整錯題紀錄：每一筆錯誤 Answer 都保留，不去重、不推測是否已修正。
         from apps.assessments.models import Choice
-        from apps.assessments.views import fill_blank_config, normalize_blank_answer
-        con_rows = Answer.objects.filter(
-            attempt__student=student,
-            question__question_type__in=['multiple_choice', 'short_answer', 'fill_blank'],
+        wrong_rows = list(Answer.objects.filter(
+            attempt__student=student, is_correct=False,
         ).values(
-            'student_answer', 'is_correct',
+            'id', 'attempt_id', 'question_id', 'student_answer',
             unit=F('question__quiz__lesson__order'),
+            question_order=F('question__order'),
+            question_text=F('question__content'),
             qtype=F('question__question_type'),
             answer_key=F('question__correct_answer'),
-        )
-        correct_units = {}   # qtype -> set(units)：同單元同題型後有答對 → 視為已修正
-        hit_keys = []        # (unit, qtype, text)，保留出現順序
-        seen = set()
-        mc_wrong = []
-        for row in con_rows:
-            if row['is_correct']:
-                correct_units.setdefault(row['qtype'], set()).add(row['unit'])
-                continue
-            if row['qtype'] == 'multiple_choice':
+            completed_at=F('attempt__completed_at'),
+        ).order_by('-attempt__completed_at', '-id'))
+        selected_choice_ids = set()
+        choice_question_ids = set()
+        for row in wrong_rows:
+            if row['qtype'] in ('multiple_choice', 'true_false'):
+                choice_question_ids.add(row['question_id'])
                 try:
-                    mc_wrong.append((row['unit'], int(row['student_answer'])))
+                    selected_choice_ids.add(int(row['student_answer']))
                 except (TypeError, ValueError):
                     pass
-            elif row['qtype'] == 'short_answer':
-                text = (row['student_answer'] or '').strip()
-                if text:
-                    key = (row['unit'], 'short_answer', text)
-                    if key not in seen:
-                        seen.add(key)
-                        hit_keys.append(key)
-            else:  # fill_blank
-                blanks = fill_blank_config(row['answer_key'])
-                submitted = (row['student_answer'] or '').replace('\r\n', '\n').replace('\r', '\n').split('\n')
-                for i, alternatives in enumerate(blanks):
-                    value = submitted[i] if i < len(submitted) else ''
-                    if normalize_blank_answer(value) in {normalize_blank_answer(a) for a in alternatives}:
-                        continue
-                    key = (row['unit'], 'fill_blank', value.strip() or '（未填）')
-                    if key not in seen:
-                        seen.add(key)
-                        hit_keys.append(key)
-        choice_map = Choice.objects.in_bulk({cid for _, cid in mc_wrong})
-        for unit, cid in mc_wrong:
-            choice = choice_map.get(cid)
-            if choice:
-                key = (unit, 'multiple_choice', choice.content.strip())
-                if key not in seen:
-                    seen.add(key)
-                    hit_keys.append(key)
-        misconception_hits = [
-            {'unit': unit, 'qtype': qtype, 'text': text,
-             'redone': unit in correct_units.get(qtype, set())}
-            for unit, qtype, text in hit_keys
-        ]
+        selected_choices = Choice.objects.in_bulk(selected_choice_ids)
+        correct_choices = {
+            choice.question_id: choice.content
+            for choice in Choice.objects.filter(
+                question_id__in=choice_question_ids, is_correct=True)
+        }
+        wrong_answers = []
+        for row in wrong_rows:
+            submitted = (row['student_answer'] or '').strip() or '（未填）'
+            correct = (row['answer_key'] or '').strip() or '—'
+            if row['qtype'] in ('multiple_choice', 'true_false'):
+                try:
+                    selected = selected_choices.get(int(row['student_answer']))
+                except (TypeError, ValueError):
+                    selected = None
+                submitted = selected.content if selected else submitted
+                correct = correct_choices.get(row['question_id'], correct)
+            wrong_answers.append({
+                'id': row['id'], 'attempt_id': row['attempt_id'],
+                'unit': row['unit'], 'question_order': row['question_order'],
+                'question': row['question_text'], 'qtype': row['qtype'],
+                'student_answer': submitted, 'correct_answer': correct,
+                'completed_at': row['completed_at'],
+            })
 
         # 班級平均（對照）
         class_avg = QuizAttempt.objects.filter(
@@ -807,13 +759,12 @@ class ResearchAnalyticsView(views.APIView):
             'trajectory': trajectory,
             'unit_scores': unit_scores,
             'daily_usage': daily_usage,
-            'misconception_hits': misconception_hits,
+            'wrong_answers': wrong_answers,
             'compare': {
                 'score': round(avg_score, 1) if avg_score is not None else None,
                 'class_score': round(class_avg, 1) if class_avg is not None else None,
             },
             'usage': _usage_student_summary(student),
-            'problem_solving': _problem_solving_student_summary(student),
         })
 
 
@@ -846,7 +797,6 @@ class MyReportView(views.APIView):
                 'class_avg_score': round(class_avg, 1) if class_avg is not None else None,
             },
             'usage': _usage_student_summary(student),
-            'problem_solving': _problem_solving_student_summary(student),
         })
 
 

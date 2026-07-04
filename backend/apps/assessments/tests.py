@@ -121,6 +121,30 @@ class AssessmentSubmissionTests(APITestCase):
         response = self.client.get(f'/api/assessments/{self.quiz2.id}/')
         self.assertEqual(response.status_code, 200)
 
+    def test_submission_updates_level_for_unstarted_next_unit(self):
+        response = self.client.post('/api/assessments/submit/', self.payload(), format='json')
+
+        self.assertEqual(response.status_code, 201)
+        path = AdaptiveLearningPath.objects.get(student=self.student, unit_number=2)
+        self.assertEqual(path.current_level, 2)  # U1 Level 1 得 100 分，U2 升為 Level 2
+
+    def test_retake_does_not_overwrite_started_next_unit_level(self):
+        first = self.client.post('/api/assessments/submit/', self.payload(), format='json')
+        self.assertEqual(first.status_code, 201)
+        path = AdaptiveLearningPath.objects.get(student=self.student, unit_number=2)
+        path.current_level = 3
+        path.save(update_fields=['current_level'])
+        QuizAttempt.objects.create(
+            student=self.student, quiz=self.quiz2,
+            selected_question_ids=[self.foreign_question.id],
+        )
+
+        retake = self.client.post('/api/assessments/submit/', self.payload(), format='json')
+
+        self.assertEqual(retake.status_code, 201)
+        path.refresh_from_db()
+        self.assertEqual(path.current_level, 3)
+
     def test_coding_question_accepts_multiple_exact_answers(self):
         coding_quiz = Quiz.objects.create(lesson=self.lesson1, title='Coding')
         coding_question = Question.objects.create(

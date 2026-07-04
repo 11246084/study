@@ -309,9 +309,18 @@ img { max-width: 100%; display: block; }
   .section { padding: 40px 20px; }
   .dashboard-layout { grid-template-columns: 1fr; }
   .sidebar { display: none; }
-  .main-content { padding: 24px; }
+  .main-content { padding: 20px 16px; }
   .form-card { margin: 32px 16px; padding: 28px 20px; }
   .quiz-banner, .stats-row { gap: 10px; }
+  /* 統計卡改兩欄、縮小留白，避免直向手機一欄到底 */
+  .stats-row { grid-template-columns: repeat(2, 1fr); }
+  .stat-card { padding: 16px; }
+  .stat-card .stat-number { font-size: 1.6rem; }
+  /* 橫排卡片（評量入口、單元上下頁）允許換行，按鈕掉到下一行而不是擠在右邊 */
+  .quiz-banner { flex-wrap: wrap; }
+  .quiz-banner .btn { width: 100%; justify-content: center; }
+  .lesson-footer { flex-wrap: wrap; gap: 10px; }
+  .page-title { font-size: 1.4rem; }
 }
 
 /* ===== UI/UX Polish ===== */

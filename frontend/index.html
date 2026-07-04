@@ -108,10 +108,10 @@
             <div class="stat-number" id="stat-score">—</div>
             <div class="stat-label">平均評量分數</div>
           </div>
-          <div class="stat-card">
+          <a href="#recommendations" class="stat-card" style="display:block;text-decoration:none;color:inherit">
             <div class="stat-number" id="stat-recommend">—</div>
-            <div class="stat-label">待查看推薦</div>
-          </div>
+            <div class="stat-label">待查看推薦 →</div>
+          </a>
         </div>
       </section>
 
@@ -455,13 +455,15 @@
       } else {
         recList.innerHTML = recs.map(r => `
           <div class="card" style="margin-bottom:12px">
-            <div class="card-body" style="display:flex;justify-content:space-between;align-items:center">
-              <div>
+            <div class="card-body" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+              <div style="flex:1 1 240px;min-width:0">
                 <div class="card-title" style="margin-bottom:4px">${escapeHtml(r.lesson_title)}</div>
                 <div class="card-desc">${escapeHtml(canSeeLevels ? r.reason : '根據最近一次評量，建議前往這個單元繼續學習。')}</div>
               </div>
-              <a href="lesson.html?lesson_id=${r.lesson_id}" data-rec-id="${r.id}" class="btn btn-lime rec-link" style="flex-shrink:0">前往學習 →</a>
-              <button type="button" data-rec-dismiss="${r.id}" class="btn btn-outline" style="margin-left:8px">忽略</button>
+              ${r.is_open !== false
+                ? `<a href="lesson.html?lesson_id=${r.lesson_id}" data-rec-id="${r.id}" class="btn btn-lime rec-link" style="flex-shrink:0">前往學習 →</a>`
+                : `<span class="btn btn-outline" style="flex-shrink:0;pointer-events:none;opacity:0.6">🔒 尚未開放</span>`}
+              <button type="button" data-rec-dismiss="${r.id}" class="btn btn-outline">忽略</button>
             </div>
           </div>
         `).join('');
@@ -472,8 +474,9 @@
         });
         recList.querySelectorAll('[data-rec-dismiss]').forEach(button => {
           button.addEventListener('click', async () => {
+            button.disabled = true;
             await LearningAPI.dismissRecommendation(button.dataset.recDismiss);
-            button.closest('.card')?.remove();
+            loadDashboard(); // 重整儀表板，同步更新「待查看推薦」數字與空狀態文字
           });
         });
       }

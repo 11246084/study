@@ -113,8 +113,9 @@ Vanilla HTML/CSS/JS — no framework, no build tool.
 
 - Creates 3 courses (beginner/intermediate/advanced), each with 8 lessons and 8 quizzes; also seeds the 8 `UnitRelease` switches (default closed — open them from 管理中心)
 - Each unit/level owns a 100-question bank; each attempt securely samples 10 questions server-side.
-- Beginner banks use `multiple_choice`, intermediate banks use `short_answer`, and advanced banks use `fill_blank`（程式填空，`FILL_BLANK_QUESTIONS`）.
-- Active question banks live in `curriculum_questions.py` (8 units × 100 questions per level); legacy banks remain in `seed_data.py` only for history.
+- **題庫改版中（2026-07）**：新版混合題庫在 `curriculum_questions_v2.py`（`MIXED_BANKS`，key = `(difficulty, unit)`）— 三個等級都混「選擇＋程式填空」，等級差異靠內容難度（L1=70選擇+30填空 對標 ITS、L2=50+50 對標 TQC+ 觀念題、L3=30+70 對標 TQC+ 實作/技藝競賽術科；皆為原創題不可抄原題）。已完成 Unit 1；未列入 `MIXED_BANKS` 的單元沿用舊制（beginner=`multiple_choice`、intermediate=`short_answer`、advanced=`fill_blank`，題庫在 `curriculum_questions.py`）。
+- 選擇題選項由 seed_data 的 `_shuffled_choices()` 以題目內容雜湊做確定性洗牌（修正舊 `mc()` 正解固定在選項 A 的問題）。
+- 新增填空題時的驗證慣例：把答案代回程式碼 exec 執行、比對 `# 預期輸出` 註解（見 v2 改版時的 exec_check 做法）。
 - `QuizAttempt.selected_question_ids` persists the sampled set. Submission and interaction APIs reject any question outside that set; summary endpoints never expose the full bank.
 - Curriculum materials are version-controlled under `frontend/assets/materials/`; `seed_data` updates existing lesson titles, content, and the 180-minute half-day duration.
 - Current unit order follows the four-day schedule: fundamentals/I-O, conditionals, loops/algorithms, loop practice, list/string, list/string practice, functions, recursion/dictionaries.

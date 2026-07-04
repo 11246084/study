@@ -1,3 +1,4 @@
+import re
 import secrets
 
 from django.utils import timezone
@@ -37,6 +38,31 @@ def normalize_code_answer(value):
 def normalize_blank_answer(value):
     """填空格比對：只忽略空白，保留大小寫（Python 區分大小寫）。"""
     return ''.join((value or '').split())
+
+
+def normalize_short_answer(value):
+    """簡答比對：統一換行符並逐行去除前後空白（多行輸出題型）、忽略大小寫。"""
+    normalized = (value or '').replace('\r\n', '\n').replace('\r', '\n')
+    return '\n'.join(line.strip() for line in normalized.split('\n')).strip().casefold()
+
+
+def short_answer_matches(student_answer, accepted):
+    """簡答判分。先做正規化後的完整比對；若標準答案去掉空白不會把兩個
+    英數字黏在一起（如運算式 `1 <= x <= 10`），額外接受忽略全部空白的寫法
+    （`1<=x<=10`）。輸出型答案（如 `4 3`）去空白會黏合，不適用寬鬆比對。"""
+    normalized = normalize_short_answer(student_answer)
+    if not normalized:
+        return False
+    for answer in accepted:
+        target = normalize_short_answer(answer)
+        if not target:
+            continue
+        if normalized == target:
+            return True
+        if not re.search(r'\w\s+\w', target) and \
+                ''.join(normalized.split()) == ''.join(target.split()):
+            return True
+    return False
 
 
 def fill_blank_config(raw_answer):
@@ -145,13 +171,8 @@ class SubmitAttemptView(views.APIView):
                         is_correct = True
                         points_earned = question.points
                 elif question.question_type in {'short_answer', 'true_false'}:
-                    normalized_answer = student_answer.strip().casefold()
-                    possible_answers = {
-                        answer.strip().casefold()
-                        for answer in accepted_answers(question.correct_answer)
-                        if answer.strip()
-                    }
-                    if normalized_answer and normalized_answer in possible_answers:
+                    if short_answer_matches(student_answer,
+                                            accepted_answers(question.correct_answer)):
                         is_correct = True
                         points_earned = question.points
                 elif question.question_type == 'coding':
@@ -395,7 +416,12 @@ class QuestionInteractionView(views.APIView):
         # ── 垂直路徑：更新下一單元等級 ──────────────────────────────
         next_unit = current_unit + 1
         next_level = AdaptiveLearningPath.determine_next_level(current_level, score)
-        if next_unit <= 8:
+        # 下一單元一旦開始作答，其 Level 即固定；回頭複習前一單元不得覆寫
+        # 已經發生的學習路徑。
+        next_unit_started = next_unit <= 8 and QuizAttempt.objects.filter(
+            student=student, quiz__lesson__order=next_unit,
+        ).exists()
+        if next_unit <= 8 and not next_unit_started:
             next_path, _ = AdaptiveLearningPath.objects.get_or_create(
                 student=student,
                 unit_number=next_unit,
@@ -414,7 +440,7 @@ class QuestionInteractionView(views.APIView):
                 rec_unit = current_unit
                 rec_level = current_level + 1
                 reason = f'Unit {current_unit} 得分 {score:.0f} 分（≥80），推薦挑戰 {LEVEL_NAMES[rec_level]}'
-            elif next_unit <= 8:
+            elif next_unit <= 8 and not next_unit_started:
                 rec_unit = next_unit
                 rec_level = next_level
                 reason = f'Unit {current_unit} 得分 {score:.0f} 分（≥80），已是最高等級，繼續 Unit {next_unit} {LEVEL_NAMES[rec_level]}'
@@ -423,12 +449,12 @@ class QuestionInteractionView(views.APIView):
                 rec_unit = current_unit
                 rec_level = current_level - 1
                 reason = f'Unit {current_unit} 得分 {score:.0f} 分（<60），推薦先複習 {LEVEL_NAMES[rec_level]}'
-            elif next_unit <= 8:
+            elif next_unit <= 8 and not next_unit_started:
                 rec_unit = next_unit
                 rec_level = 1
                 reason = f'Unit {current_unit} 得分 {score:.0f} 分（<60），繼續以 {LEVEL_NAMES[1]} 學習'
         else:
-            if next_unit <= 8:
+            if next_unit <= 8 and not next_unit_started:
                 rec_unit = next_unit
                 rec_level = next_level
                 reason = f'Unit {current_unit} 得分 {score:.0f} 分，繼續以 {LEVEL_NAMES[rec_level]} 學習'
@@ -461,6 +487,7 @@ class QuestionInteractionView(views.APIView):
                     reason=reason,
                 )
 
+                from apps.learning.models import UnitRelease
                 next_lesson_data = {
                     'recommendation_id': created_rec.id,
                     'lesson_id': rec_lesson.id,
@@ -470,6 +497,8 @@ class QuestionInteractionView(views.APIView):
                     'level': rec_level,
                     'level_name': LEVEL_NAMES[rec_level],
                     'reason': reason,
+                    'is_open': UnitRelease.objects.filter(
+                        unit_number=rec_unit, is_open=True).exists(),
                 }
 
         # ── 全部 8 單元完成 → 推薦最弱的 3 個單元 ────────────────────
@@ -634,6 +663,7 @@ class AttemptDetailView(generics.RetrieveAPIView):
         )
 
         if rec:
+            from apps.learning.models import UnitRelease
             rec_level = DIFFICULTY_TO_LEVEL.get(rec.recommended_lesson.course.difficulty, 2)
             data['next_lesson'] = {
                 'recommendation_id': rec.id,
@@ -644,6 +674,8 @@ class AttemptDetailView(generics.RetrieveAPIView):
                 'level': rec_level,
                 'level_name': LEVEL_NAMES[rec_level],
                 'reason': rec.reason,
+                'is_open': UnitRelease.objects.filter(
+                    unit_number=rec.recommended_lesson.order, is_open=True).exists(),
             }
         else:
             data['next_lesson'] = None

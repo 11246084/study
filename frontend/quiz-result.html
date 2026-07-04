@@ -6,6 +6,8 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>評量結果 — AdaptLearn</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet" />
+  <!-- Highlight.js（程式碼語法高亮，暗色主題配合深色程式碼區塊） -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" />
   <link rel="stylesheet" href="css/style.css" />
   <style>
     .result-wrap { max-width: 720px; margin: 0 auto; padding: 40px 20px; }
@@ -36,12 +38,14 @@
     .answer-code {
       background: #1e1e1e; color: #d4d4d4; border-radius: var(--radius-sm);
       padding: 12px; font-family: monospace; font-size: 0.82rem; margin: 8px 0;
+      white-space: pre; overflow-x: auto; line-height: 1.6;
     }
     .answer-detail { font-size: 0.88rem; color: #555; }
     .answer-detail .label { font-weight: 600; margin-top: 8px; }
     .explanation-box {
       background: var(--color-gray); border-radius: var(--radius-sm);
       padding: 12px 16px; margin-top: 12px; font-size: 0.88rem; color: #444;
+      white-space: pre-wrap;
     }
     .result-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 32px; }
   </style>
@@ -81,10 +85,24 @@
     <div class="result-actions" id="result-actions"></div>
   </div>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
   <script src="js/api.js"></script>
   <script src="js/main.js"></script>
   <script>
     if (!localStorage.getItem('access_token')) window.location.href = 'login.html';
+
+    // Python 語法高亮（CDN 載入失敗時退回純文字）；__n__ 先保護再高亮，最後渲染成空格標記
+    function highlightPython(code) {
+      try {
+        if (window.hljs) return hljs.highlight(code, { language: 'python' }).value;
+      } catch (e) { /* fall through */ }
+      return escapeHtml(code);
+    }
+    function renderResultCode(raw) {
+      const protectedCode = raw.replace(/__(\d+)__/g, (m, n) => `xBLANK${n}x`);
+      return highlightPython(protectedCode).replace(/xBLANK(\d+)x/g, (m, n) =>
+        `<span style="color:#C5F135;font-weight:700;border-bottom:2px solid #C5F135;padding:0 4px">空格${n}</span>`);
+    }
 
     const params = new URLSearchParams(window.location.search);
     const attemptId = params.get('attempt_id');
@@ -124,7 +142,7 @@
         list.innerHTML = answers.map((a, i) => {
           const codeMatch = a.question_content.match(/```(?:python)?\n([\s\S]*?)```/);
           const textPart = a.question_content.replace(/```(?:python)?\n[\s\S]*?```/g, '').trim();
-          const codeBlock = codeMatch ? `<div class="answer-code">${escapeHtml(codeMatch[1])}</div>` : '';
+          const codeBlock = codeMatch ? `<div class="answer-code">${renderResultCode(codeMatch[1])}</div>` : '';
 
           return `
             <div class="answer-item ${a.is_correct ? 'correct' : 'wrong'}">
@@ -173,12 +191,22 @@
         document.getElementById('next-unit-title').textContent = isSameUnit
           ? `推薦學習：Unit ${nextLesson.unit_number}：${nextLesson.lesson_title}`
           : `Unit ${nextLesson.unit_number}：${nextLesson.lesson_title}`;
-        document.getElementById('next-lesson-btn').textContent = isSameUnit ? '前往推薦單元 →' : '前往下一單元 →';
-        document.getElementById('next-lesson-btn').href = `lesson.html?lesson_id=${nextLesson.lesson_id}`;
-        // 記錄推薦卡點擊（RQ-04 推薦接受度埋點）
-        if (nextLesson.recommendation_id) {
-          document.getElementById('next-lesson-btn').addEventListener('click', () =>
-            LearningAPI.clickRecommendation(nextLesson.recommendation_id));
+        const nextBtn = document.getElementById('next-lesson-btn');
+        if (nextLesson.is_open === false) {
+          // 單元尚未由老師開放 → 不給可點連結，顯示鎖定狀態
+          nextBtn.textContent = '🔒 老師尚未開放';
+          nextBtn.removeAttribute('href');
+          nextBtn.style.pointerEvents = 'none';
+          nextBtn.style.opacity = '0.6';
+          document.getElementById('next-reason').textContent += '（老師開放單元後即可前往）';
+        } else {
+          nextBtn.textContent = isSameUnit ? '前往推薦單元 →' : '前往下一單元 →';
+          nextBtn.href = `lesson.html?lesson_id=${nextLesson.lesson_id}`;
+          // 記錄推薦卡點擊（RQ-04 推薦接受度埋點）
+          if (nextLesson.recommendation_id) {
+            nextBtn.addEventListener('click', () =>
+              LearningAPI.clickRecommendation(nextLesson.recommendation_id));
+          }
         }
       } else {
         nextBanner.innerHTML = `

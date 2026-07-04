@@ -194,7 +194,22 @@
         AuthAPI.getProfile(),
       ]);
 
-      if (!lessonRes || !lessonRes.ok) { showToast('無法載入單元', 'error'); return; }
+      if (!lessonRes || !lessonRes.ok) {
+        const err = lessonRes ? await lessonRes.json().catch(() => null) : null;
+        const message = err?.detail || '無法載入單元內容，請稍後再試。';
+        const backHref = IS_EMBEDDED ? 'courses.html?embedded=1' : '/';
+        document.getElementById('lesson-content').innerHTML = `
+          <div style="border:1px solid #F59E0B;border-left:4px solid #F59E0B;background:#FEF4E1;
+                      border-radius:12px;padding:24px 28px">
+            <div style="font-size:1.05rem;font-weight:800;color:#7a5200">🔒 ${escapeHtml(message)}</div>
+            <div style="font-size:0.88rem;color:#7a5200;margin-top:6px">
+              可以先回學習中心，複習已開放的單元。
+            </div>
+            <a href="${backHref}" class="btn btn-primary" style="margin-top:18px">← 回學習中心</a>
+          </div>`;
+        showToast(message, 'error');
+        return;
+      }
       const lesson = await lessonRes.json();
 
       // embedded 模式：back-link 改成回該課程詳情頁

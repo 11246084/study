@@ -101,6 +101,18 @@
               <span class="info-value" id="info-student-id">—</span>
             </div>
             <div class="info-row">
+              <span class="info-label">性別</span>
+              <span class="info-value" id="info-gender">—</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">學校</span>
+              <span class="info-value" id="info-school">—</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">偏好程式語言</span>
+              <span class="info-value" id="info-preferred-language">—</span>
+            </div>
+            <div class="info-row">
               <span class="info-label">角色</span>
               <span class="badge-role" id="info-role">—</span>
             </div>
@@ -119,6 +131,27 @@
               <div class="form-group">
                 <label class="form-label">學號</label>
                 <input class="form-input" type="text" id="edit-student-id" placeholder="學號" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">性別</label>
+                <select class="form-input" id="edit-gender">
+                  <option value="">未設定</option>
+                  <option value="male">男</option>
+                  <option value="female">女</option>
+                  <option value="other">其他/不願透露</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">學校簡稱</label>
+                <input class="form-input" type="text" id="edit-school-short-name" placeholder="例：中山大學" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">學校全名</label>
+                <input class="form-input" type="text" id="edit-school-name" placeholder="例：國立中山大學" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">偏好程式語言</label>
+                <input class="form-input" type="text" id="edit-preferred-language" placeholder="例：Python" />
               </div>
               <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center">
                 儲存變更
@@ -200,18 +233,27 @@
       const profile = await AuthAPI.getProfile();
       if (!profile) { showToast('無法載入個人資料', 'error'); return; }
 
+      const genderMap = { male: '男', female: '女', other: '其他/不願透露' };
       const initial = (profile.username || '?')[0].toUpperCase();
       document.getElementById('avatar-circle').textContent = initial;
       document.getElementById('display-name').textContent = profile.username;
       document.getElementById('display-email').textContent = profile.email || '未設定';
       document.getElementById('info-username').textContent = profile.username;
       document.getElementById('info-student-id').textContent = profile.student_id || '未設定';
+      document.getElementById('info-gender').textContent = genderMap[profile.gender] || '未設定';
+      document.getElementById('info-school').textContent =
+        profile.school_name || profile.school_short_name || '未設定';
+      document.getElementById('info-preferred-language').textContent =
+        profile.preferred_programming_language || '未設定';
       document.getElementById('info-role').textContent = roleMap[profile.role] || profile.role;
 
       // 填入編輯表單
       document.getElementById('edit-email').value = profile.email || '';
       document.getElementById('edit-student-id').value = profile.student_id || '';
-      document.getElementById('edit-bio').value = profile.bio || '';
+      document.getElementById('edit-gender').value = profile.gender || '';
+      document.getElementById('edit-school-short-name').value = profile.school_short_name || '';
+      document.getElementById('edit-school-name').value = profile.school_name || '';
+      document.getElementById('edit-preferred-language').value = profile.preferred_programming_language || '';
     }
 
     document.getElementById('profile-form').addEventListener('submit', async (e) => {
@@ -221,14 +263,22 @@
         body: JSON.stringify({
           email: document.getElementById('edit-email').value,
           student_id: document.getElementById('edit-student-id').value,
-          bio: document.getElementById('edit-bio').value,
+          gender: document.getElementById('edit-gender').value,
+          school_short_name: document.getElementById('edit-school-short-name').value,
+          school_name: document.getElementById('edit-school-name').value,
+          preferred_programming_language: document.getElementById('edit-preferred-language').value,
         }),
       });
       if (res && res.ok) {
         showToast('資料更新成功！');
         loadProfile();
       } else {
-        showToast('更新失敗', 'error');
+        let message = '更新失敗';
+        try {
+          const data = await res.json();
+          message = Object.values(data).flat()[0] || message;
+        } catch (e) { /* 非 JSON 回應就用預設訊息 */ }
+        showToast(message, 'error');
       }
     });
 
@@ -287,7 +337,6 @@
       if (!d) { box.innerHTML = '<p style="color:#888">尚無法載入報表。</p>'; return; }
       const e = d.effectiveness || {};
       const u = d.usage || {};
-      const p = d.problem_solving || {};
 
       const cardCss = 'background:#faf9f5;border:1px solid #ececE4;border-radius:12px;padding:16px';
       const metric = (label, val, unit, extra = '') =>
@@ -300,7 +349,6 @@
         ${metric('完成單元', e.completed_units, `/ ${e.total_units}`, '')}
         ${metric('每次使用長度', u.avg_session_minutes, '分', '')}
         ${metric('每週使用次數', u.avg_sessions_per_active_week, '次', u.avg_minutes_per_active_week != null ? `每週約 ${u.avg_minutes_per_active_week} 分` : '')}
-        ${metric('解題答對率', p.short_answer_accuracy, '%', p.class_short_answer_accuracy != null ? `班級 ${p.class_short_answer_accuracy}%` : '')}
       </div>`;
 
       box.innerHTML = `
