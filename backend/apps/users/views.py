@@ -11,11 +11,12 @@ import json
 from rest_framework import generics, permissions, response, status, views
 from rest_framework_simplejwt.views import TokenObtainPairView
 from .models import User, LoginEvent
-from .serializers import ChangePasswordSerializer, UserProfileSerializer
+from .serializers import ChangePasswordSerializer, LoginTokenSerializer, UserProfileSerializer
 
 
 class LoginView(TokenObtainPairView):
     permission_classes = [permissions.AllowAny]
+    serializer_class = LoginTokenSerializer
 
     def post(self, request, *args, **kwargs):
         resp = super().post(request, *args, **kwargs)

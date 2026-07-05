@@ -1,6 +1,14 @@
 from rest_framework import serializers
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.auth.password_validation import validate_password
 from .models import User
+
+
+class LoginTokenSerializer(TokenObtainPairSerializer):
+    """覆寫 simplejwt 登入失敗的預設英文訊息為中文。"""
+    default_error_messages = {
+        'no_active_account': '帳號或密碼錯誤，請重新輸入。',
+    }
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
