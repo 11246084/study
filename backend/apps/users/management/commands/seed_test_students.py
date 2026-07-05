@@ -27,11 +27,57 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         if options['delete']:
-            deleted, _ = User.objects.filter(username__startswith=PREFIX).delete()
-            self.stdout.write(self.style.SUCCESS(f'Deleted loadtest accounts (rows removed: {deleted}).'))
+            self._delete_loadtest_accounts()
             return
 
-        count = options['count']
+        self._create(options['count'])
+
+    def _delete_loadtest_accounts(self):
+        """Remove loadtest accounts and their PROTECT-ed research rows in order.
+
+        Foreign keys use on_delete=PROTECT, so a plain User.delete() fails while
+        attempts/events/etc. exist. Delete leaf-first: StudentEvent (it protects
+        StudySession & AdaptiveRecommendation) → attempts (cascades answers) →
+        the remaining per-student rows → login events → the users themselves.
+        """
+        from django.db import transaction
+        from apps.assessments.models import QuizAttempt
+        from apps.learning.models import (
+            AdaptiveLearningPath, AdaptiveRecommendation, LearningProgress,
+            StudentEvent, StudentUnitSummary, StudySession,
+        )
+        from apps.users.models import LoginEvent
+
+        users = User.objects.filter(username__startswith=PREFIX)
+        user_ids = list(users.values_list('id', flat=True))
+        if not user_ids:
+            self.stdout.write(self.style.WARNING('No loadtest* accounts found — nothing to delete.'))
+            return
+
+        removed = {}
+        with transaction.atomic():
+            # order matters: StudentEvent protects StudySession & AdaptiveRecommendation
+            for label, qs in [
+                ('StudentEvent', StudentEvent.objects.filter(student_id__in=user_ids)),
+                ('QuizAttempt', QuizAttempt.objects.filter(student_id__in=user_ids)),
+                ('AdaptiveRecommendation', AdaptiveRecommendation.objects.filter(student_id__in=user_ids)),
+                ('AdaptiveLearningPath', AdaptiveLearningPath.objects.filter(student_id__in=user_ids)),
+                ('LearningProgress', LearningProgress.objects.filter(student_id__in=user_ids)),
+                ('StudentUnitSummary', StudentUnitSummary.objects.filter(student_id__in=user_ids)),
+                ('StudySession', StudySession.objects.filter(student_id__in=user_ids)),
+                ('LoginEvent', LoginEvent.objects.filter(user_id__in=user_ids)),
+            ]:
+                n, _ = qs.delete()
+                removed[label] = n
+            n, _ = User.objects.filter(id__in=user_ids).delete()
+            removed['User'] = n
+
+        detail = ', '.join(f'{k}={v}' for k, v in removed.items() if v)
+        self.stdout.write(self.style.SUCCESS(
+            f'Deleted {len(user_ids)} loadtest accounts and their data ({detail}).'
+        ))
+
+    def _create(self, count):
         created = 0
         with transaction.atomic():
             for i in range(1, count + 1):

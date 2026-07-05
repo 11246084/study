@@ -75,23 +75,40 @@ def call(method, url, name, token=None, body=None, expect=(200, 201)):
 
 
 def student_loop(base, username, password, deadline):
-    """One simulated student: login once, then act until the deadline."""
+    """One simulated student: login, discover what's open, then act till deadline."""
     ok, data = call('POST', f'{base}/api/auth/login/', 'auth/login',
                     body={'username': username, 'password': password})
     token = data.get('access') if (ok and data) else None
     if not token:
         return
 
+    # Behave like a real student: only touch units the teacher has opened.
+    ok, path = call('GET', f'{base}/api/learning/adaptive-path/', 'learning/adaptive-path', token)
+    open_lessons = []
+    if ok and isinstance(path, list):
+        open_lessons = [u['lesson_id'] for u in path if u.get('is_open') and u.get('lesson_id')]
+    # Resolve real quiz ids from the first open lesson (the heavy path needs them).
+    quiz_ids = []
+    if open_lessons:
+        ok, ql = call('GET', f'{base}/api/assessments/lesson/{open_lessons[0]}/',
+                      'assessments/lesson-quizzes', token)
+        items = ql.get('results') if isinstance(ql, dict) else ql
+        if isinstance(items, list):
+            quiz_ids = [q['id'] for q in items if q.get('id')]
+
     while not _stop.is_set() and time.time() < deadline:
         roll = random.random()
         if roll < 0.45:                      # dashboard (most common)
             call('GET', f'{base}/api/learning/adaptive-path/', 'learning/adaptive-path', token)
             call('GET', f'{base}/api/learning/progress/', 'learning/progress', token)
-        elif roll < 0.70:                    # read a lesson + heartbeat
-            lid = random.randint(1, 24)
-            call('GET', f'{base}/api/courses/lesson/{lid}/', 'courses/lesson', token)
-            call('POST', f'{base}/api/learning/heartbeat/', 'learning/heartbeat', token, body={})
-        elif roll < 0.85:                    # batch event upload
+        elif roll < 0.70:                    # read an open lesson + heartbeat
+            if open_lessons:
+                lid = random.choice(open_lessons)
+                call('GET', f'{base}/api/courses/lesson/{lid}/', 'courses/lesson', token)
+            # heartbeat returns 204 No Content
+            call('POST', f'{base}/api/learning/heartbeat/', 'learning/heartbeat', token,
+                 body={}, expect=(200, 204))
+        elif roll < 0.85:                    # batch event upload (returns 201)
             batch = [{
                 'event_uuid': f'{username}-{random.random()}',
                 'event_type': random.choice(['answer_change', 'material_scroll', 'focus']),
@@ -99,16 +116,16 @@ def student_loop(base, username, password, deadline):
             } for _ in range(random.randint(1, 5))]
             call('POST', f'{base}/api/learning/events/', 'learning/events', token, body=batch)
         else:                                # heavy path: start -> submit a quiz
-            take_quiz(base, token)
+            if quiz_ids:
+                take_quiz(base, token, random.choice(quiz_ids))
 
         # human think-time between actions
         time.sleep(random.uniform(3, 12))
 
 
-def take_quiz(base, token):
-    quiz_id = random.randint(1, 24)
+def take_quiz(base, token, quiz_id):
     ok, data = call('POST', f'{base}/api/assessments/start/', 'assessments/start', token,
-                    body={'quiz_id': quiz_id}, expect=(201, 403))
+                    body={'quiz_id': quiz_id}, expect=(201,))
     if not ok or not data:
         return
     attempt_id = data.get('id')
@@ -123,8 +140,10 @@ def take_quiz(base, token):
             ans = 'x'
         answers.append({'question_id': q['id'], 'student_answer': ans})
     time.sleep(random.uniform(2, 6))   # student answering
+    # submit returns 201
     call('POST', f'{base}/api/assessments/submit/', 'assessments/submit', token,
-         body={'attempt_id': attempt_id, 'quiz_id': quiz_id, 'answers': answers})
+         body={'attempt_id': attempt_id, 'quiz_id': quiz_id, 'answers': answers},
+         expect=(200, 201))
 
 
 def pct(values, p):

@@ -16,7 +16,7 @@
 
 ## Unit 1｜環境、變數、資料型態與 I/O
 
-### 共同學習目標（與 Level 1、Level 3 相同）
+### 共同學習目標
 
 > 以下是三個級別共同的 Unit 1 學習目標；本版採標準課本敘述與練習。
 
@@ -64,11 +64,21 @@ print(f"共 {quantity} 件，總價 {total} 元")
 - `=` 是指定，`==` 才是比較。
 - 不使用 `eval(input())`，避免執行不可信的程式碼。
 
+看懂錯誤類型才能快速定位問題：
+
+| 寫法 | 錯誤類型 | 原因 |
+|---|---|---|
+| `"5" + 3`、`"a" + 1` | `TypeError` | 型態不合：字串與數字不能直接相加 |
+| `int("abc")`、`int("3.5")` | `ValueError` | 值不合：字串內容無法轉成整數（含小數點要先 `float()`）|
+| `print(score)`（未定義）| `NameError` | 名稱不存在：變數沒指定過或大小寫打錯 |
+| `10 / 0` | `ZeroDivisionError` | 除數不能為 0 |
+| `print("hi"`（少右括號）| `SyntaxError` | 語法寫錯：括號、引號沒有成對 |
+
 ---
 
 ## Unit 2｜條件判斷 If／Elif／Else
 
-### 共同學習目標（與 Level 1、Level 3 相同）
+### 共同學習目標
 
 - 使用關係運算子與 `and`、`or`、`not` 組合條件。
 - 使用 `if / elif / else` 表達互斥規則。
@@ -104,11 +114,16 @@ else:
 - 閏年判斷：能被 400 整除，或能被 4 整除但不能被 100 整除。
 - 簡易票價系統：依年齡與學生身分計價。
 
+### 常見錯誤
+
+- 判斷相等要用 `==`；寫成 `if x = 5`（單一等號）會 `SyntaxError`。
+- `if`／`else` 內的程式忘記縮排會 `IndentationError`。
+
 ---
 
 ## Unit 3｜For／While 與基礎演算法
 
-### 共同學習目標（與 Level 1、Level 3 相同）
+### 共同學習目標
 
 - 分辨已知次數的 `for` 與未知次數的 `while`。
 - 使用 `range(start, stop, step)`。
@@ -159,7 +174,7 @@ print(total, count, maximum)
 
 ## Unit 4｜迴圈實作與基礎題庫
 
-### 共同學習目標（與 Level 1、Level 3 相同）
+### 共同學習目標
 
 - 將題目拆成初始化、重複處理、更新與輸出。
 - 使用巢狀迴圈處理表格與圖形。
@@ -200,7 +215,7 @@ print("質數" if is_prime else "不是質數")
 
 ## Unit 5｜List 與 String 進階操作
 
-### 共同學習目標（與 Level 1、Level 3 相同）
+### 共同學習目標
 
 - 使用索引、負索引與切片讀寫串列。
 - 使用 `append`、`insert`、`pop`、`remove`、`sort`。
@@ -238,11 +253,17 @@ point = (25.04, 121.56)
 latitude, longitude = point
 ```
 
+### 常見錯誤
+
+- 索引超出範圍（如串列只有 3 個元素卻寫 `nums[3]`）會 `IndexError`。
+- 字串不可變：`text[0] = "x"` 會 `TypeError`；元組 `point[0] = 5` 同樣不可修改。
+- `remove(x)` 找不到 x、`int("abc")` 轉不成數字，都會 `ValueError`。
+
 ---
 
 ## Unit 6｜串列與字串實戰題庫
 
-### 共同學習目標（與 Level 1、Level 3 相同）
+### 共同學習目標
 
 - 將原始字串清理後轉換成可分析的串列。
 - 使用迴圈完成搜尋、統計、排序與分組。
@@ -275,7 +296,7 @@ print(f"最高：{max(scores)}，最低：{min(scores)}")
 
 ## Unit 7｜函式與模組化
 
-### 共同學習目標（與 Level 1、Level 3 相同）
+### 共同學習目標
 
 - 使用 `def`、參數與 `return` 封裝重複邏輯。
 - 理解區域變數、預設參數與關鍵字參數。
@@ -311,11 +332,16 @@ def bmi_level(bmi):
 - 建立 `statistics(numbers)`，回傳總和、平均、最大與最小值。
 - 將猜數字拆成產生答案、取得輸入、判斷結果三個函式。
 
+### 常見錯誤
+
+- 引數數量不符（`def f(a, b)` 卻呼叫 `f(1)`）會 `TypeError`。
+- 區域變數在函式外面使用會 `NameError`（它只存在於函式內）。
+
 ---
 
 ## Unit 8｜遞迴與 Dictionary 應用
 
-### 共同學習目標（與 Level 1、Level 3 相同）
+### 共同學習目標
 
 - 理解遞迴的終止條件與遞迴步驟。
 - 使用字典的鍵值結構增刪查改。
@@ -342,6 +368,10 @@ scores["Bob"] = 78
 for name, score in scores.items():
     print(f"{name}: {score}")
 ```
+
+### 常見錯誤
+
+- 取用不存在的鍵（`scores["x"]`）會 `KeyError`；改用 `scores.get("x", 預設值)` 可安全取值，找不到時回傳預設值（下方詞頻範例就用了 `frequency.get(word, 0)`）。
 
 ### 綜合實作：文字詞頻
 
