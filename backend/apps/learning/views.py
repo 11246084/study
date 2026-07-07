@@ -286,9 +286,9 @@ class AdaptivePathView(views.APIView):
         open_units = set(
             UnitRelease.objects.filter(is_open=True).values_list('unit_number', flat=True)
         )
-        # 取得已作答過評量的單元（不論是否通過）
+        # 取得已「提交」過評量的單元（不論是否通過）；未交卷中途離開不算完成
         attempted_units = set(
-            QuizAttempt.objects.filter(student=student)
+            QuizAttempt.objects.filter(student=student, completed_at__isnull=False)
             .values_list('quiz__lesson__order', flat=True)
         )
         best_score_by_unit = {
