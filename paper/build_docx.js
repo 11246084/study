@@ -173,10 +173,10 @@ for (; i < lines.length; i++) {
     continue;
   }
 
-  // reference entries [n]
+  // reference entries [n] — 緊排：無段距、縮小懸掛縮排
   if (/^\[\d+\]/.test(t)) {
     body.push(new Paragraph({ alignment: AlignmentType.BOTH,
-      indent: { left: 340, hanging: 340 }, spacing: { line: 240, after: 40 },
+      indent: { left: 220, hanging: 220 }, spacing: { line: 220, lineRule: 'atLeast', after: 0 },
       children: runs(t.replace(/\*/g, ''), { size: 20 }) }));
     continue;
   }

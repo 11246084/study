@@ -288,49 +288,26 @@ E-mail 1, E-mail 2, E-mail 3, E-mail 4, *
 【待補：如有計畫補助或單位協助，請於此致謝。】
 
 ## 參考文獻
-
-[1] K. Nolan and S. Bergin, "The role of anxiety when learning to program: A systematic review of the literature," in *Proceedings of the 16th Koli Calling International Conference on Computing Education Research*, 2016, pp. 61–70.
-
-[2] Y. Qian and J. Lehman, "Students' misconceptions and other difficulties in introductory programming: A literature review," *ACM Transactions on Computing Education*, vol. 18, no. 1, pp. 1–24, 2017.
-
-[3] J. Swacha, R. Queirós, and J. C. Paiva, "Towards a framework for gamified programming education," in *2019 International Symposium on Educational Technology (ISET)*, 2019, pp. 144–149.
-
-[4] M. Messer, N. C. Brown, M. Kölling, and M. Shi, "Automated grading and feedback tools for programming education: A systematic review," *ACM Transactions on Computing Education*, vol. 24, no. 1, pp. 1–43, 2024.
-
-[5] F. Johnson, S. McQuistin, and J. O'Donnell, "Analysis of student misconceptions using Python as an introductory programming language," in *Proceedings of the 4th Conference on Computing Education Practice*, 2020, pp. 1–4.
-
-[6] S. Grover and S. Basu, "Measuring student learning in introductory block-based programming: Examining misconceptions of loops, variables, and boolean logic," in *Proceedings of the 2017 ACM SIGCSE Technical Symposium on Computer Science Education*, 2017, pp. 267–272.
-
-[7] K. C. Lu and S. Krishnamurthi, "Identifying and correcting programming language behavior misconceptions," *Proceedings of the ACM on Programming Languages*, vol. 8, no. OOPSLA1, pp. 334–361, 2024.
-
-[8] K. Woo and G. Falloon, "Problem solved, but how? An exploratory study into students' problem solving processes in creative coding tasks," *Thinking Skills and Creativity*, vol. 46, 101193, 2022.
-
-[9] X. Hao, Z. Xu, M. Guo, Y. Hu, and F. Geng, "The effect of embedded structures on cognitive load for novice learners during block-based code comprehension," *International Journal of STEM Education*, vol. 10, no. 1, p. 42, 2023.
-
-[10] D. Hooshyar, R. B. Ahmad, M. Yousefi, F. D. Yusop, and S. J. Horng, "A flowchart-based intelligent tutoring system for improving problem-solving skills of novice programmers," *Journal of Computer Assisted Learning*, vol. 31, no. 4, pp. 345–361, 2015.
-
-[11] L. Silva, A. Mendes, A. Gomes, and G. Fortes, "What learning strategies are used by programming students? A qualitative study grounded on the self-regulation of learning theory," *ACM Transactions on Computing Education*, vol. 24, no. 1, pp. 1–26, 2024.
-
-[12] C. Tikva and E. Tambouris, "The effect of scaffolding programming games and attitudes towards programming on the development of computational thinking," *Education and Information Technologies*, vol. 28, no. 6, pp. 6845–6867, 2023.
-
-[13] Y. Shin, J. Jung, J. Zumbach, and E. Yi, "The effects of worked-out example and metacognitive scaffolding on problem-solving programming," *Journal of Educational Computing Research*, vol. 61, no. 6, pp. 1312–1331, 2023.
-
-[14] H. C. Ling and H. S. Chiang, "Learning performance in adaptive learning systems: A case study of web programming learning recommendations," *Frontiers in Psychology*, vol. 13, 770637, 2022.
-
-[15] G. Weber and M. Specht, "User modeling and adaptive navigation support in WWW-based tutoring systems," in *User Modeling: Proceedings of the Sixth International Conference UM97*, 1997, pp. 289–300.
-
-[16] K. Chrysafiadi, M. Virvou, G. A. Tsihrintzis, and I. Hatzilygeroudis, "Evaluating the user's experience, adaptivity and learning outcomes of a fuzzy-based intelligent tutoring system for computer programming for academic students in Greece," *Education and Information Technologies*, vol. 28, no. 6, pp. 6453–6483, 2023.
-
-[17] L. Na Nongkhai, J. Wang, and T. Mendori, "Development and evaluation of adaptive learning support system based on ontology of multiple programming languages," *Education Sciences*, vol. 15, no. 6, p. 724, 2025.
-
-[18] L. C. Chang, H. R. Lin, and J. W. Lin, "Learning motivation, outcomes, and anxiety in programming courses—A computational thinking–centered method," *Education and Information Technologies*, vol. 29, no. 1, pp. 545–569, 2024.
-
-[19] F. Guay, R. J. Vallerand, and C. Blanchard, "On the assessment of situational intrinsic and extrinsic motivation: The Situational Motivation Scale (SIMS)," *Motivation and Emotion*, vol. 24, pp. 175–213, 2000.
-
-[20] V. Venkatesh, "Determinants of perceived ease of use: Integrating control, intrinsic motivation, and emotion into the technology acceptance model," *Information Systems Research*, vol. 11, no. 4, pp. 342–365, 2000.
-
-[21] L. C. Wang and M. P. Chen, "The effects of game strategy and preference-matching on flow experience and programming performance in game-based learning," *Innovations in Education and Teaching International*, vol. 47, no. 1, pp. 39–52, 2010.
-
-[22] Y. Y. He, C. K. Chang, and B. J. Liu, "Teaching computer programming for freshmen: A study on using scratch as remedial teaching," *International Journal on Digital Learning Technology*, vol. 2, no. 1, pp. 11–32, 2010.
-
-[23] J. Brooke, "SUS-A quick and dirty usability scale," *Usability Evaluation in Industry*, vol. 189, no. 194, pp. 4–7, 1996.
+[1] K. Nolan and S. Bergin, "The role of anxiety when learning to program: A systematic review of the literature," in *Proc. 16th Koli Calling Int. Conf. Comput. Educ. Res.*, 2016, pp. 61–70.
+[2] Y. Qian and J. Lehman, "Students' misconceptions and other difficulties in introductory programming: A literature review," *ACM Trans. Comput. Educ.*, vol. 18, no. 1, pp. 1–24, 2017.
+[3] J. Swacha, R. Queirós, and J. C. Paiva, "Towards a framework for gamified programming education," in *Proc. Int. Symp. Educ. Technol. (ISET)*, 2019, pp. 144–149.
+[4] M. Messer, N. C. Brown, M. Kölling, and M. Shi, "Automated grading and feedback tools for programming education: A systematic review," *ACM Trans. Comput. Educ.*, vol. 24, no. 1, pp. 1–43, 2024.
+[5] F. Johnson, S. McQuistin, and J. O'Donnell, "Analysis of student misconceptions using Python as an introductory programming language," in *Proc. 4th Conf. Comput. Educ. Pract.*, 2020, pp. 1–4.
+[6] S. Grover and S. Basu, "Measuring student learning in introductory block-based programming: Examining misconceptions of loops, variables, and boolean logic," in *Proc. ACM SIGCSE Tech. Symp. Comput. Sci. Educ.*, 2017, pp. 267–272.
+[7] K. C. Lu and S. Krishnamurthi, "Identifying and correcting programming language behavior misconceptions," *Proc. ACM Program. Lang.*, vol. 8, no. OOPSLA1, pp. 334–361, 2024.
+[8] K. Woo and G. Falloon, "Problem solved, but how? An exploratory study into students' problem solving processes in creative coding tasks," *Think. Skills Creat.*, vol. 46, 101193, 2022.
+[9] X. Hao, Z. Xu, M. Guo, Y. Hu, and F. Geng, "The effect of embedded structures on cognitive load for novice learners during block-based code comprehension," *Int. J. STEM Educ.*, vol. 10, no. 1, p. 42, 2023.
+[10] D. Hooshyar, R. B. Ahmad, M. Yousefi, F. D. Yusop, and S. J. Horng, "A flowchart-based intelligent tutoring system for improving problem-solving skills of novice programmers," *J. Comput. Assist. Learn.*, vol. 31, no. 4, pp. 345–361, 2015.
+[11] L. Silva, A. Mendes, A. Gomes, and G. Fortes, "What learning strategies are used by programming students? A qualitative study grounded on the self-regulation of learning theory," *ACM Trans. Comput. Educ.*, vol. 24, no. 1, pp. 1–26, 2024.
+[12] C. Tikva and E. Tambouris, "The effect of scaffolding programming games and attitudes towards programming on the development of computational thinking," *Educ. Inf. Technol.*, vol. 28, no. 6, pp. 6845–6867, 2023.
+[13] Y. Shin, J. Jung, J. Zumbach, and E. Yi, "The effects of worked-out example and metacognitive scaffolding on problem-solving programming," *J. Educ. Comput. Res.*, vol. 61, no. 6, pp. 1312–1331, 2023.
+[14] H. C. Ling and H. S. Chiang, "Learning performance in adaptive learning systems: A case study of web programming learning recommendations," *Front. Psychol.*, vol. 13, 770637, 2022.
+[15] G. Weber and M. Specht, "User modeling and adaptive navigation support in WWW-based tutoring systems," in *Proc. 6th Int. Conf. User Model. (UM97)*, 1997, pp. 289–300.
+[16] K. Chrysafiadi, M. Virvou, G. A. Tsihrintzis, and I. Hatzilygeroudis, "Evaluating the user's experience, adaptivity and learning outcomes of a fuzzy-based intelligent tutoring system for computer programming for academic students in Greece," *Educ. Inf. Technol.*, vol. 28, no. 6, pp. 6453–6483, 2023.
+[17] L. Na Nongkhai, J. Wang, and T. Mendori, "Development and evaluation of adaptive learning support system based on ontology of multiple programming languages," *Educ. Sci.*, vol. 15, no. 6, p. 724, 2025.
+[18] L. C. Chang, H. R. Lin, and J. W. Lin, "Learning motivation, outcomes, and anxiety in programming courses—A computational thinking–centered method," *Educ. Inf. Technol.*, vol. 29, no. 1, pp. 545–569, 2024.
+[19] F. Guay, R. J. Vallerand, and C. Blanchard, "On the assessment of situational intrinsic and extrinsic motivation: The Situational Motivation Scale (SIMS)," *Motiv. Emot.*, vol. 24, pp. 175–213, 2000.
+[20] V. Venkatesh, "Determinants of perceived ease of use: Integrating control, intrinsic motivation, and emotion into the technology acceptance model," *Inf. Syst. Res.*, vol. 11, no. 4, pp. 342–365, 2000.
+[21] L. C. Wang and M. P. Chen, "The effects of game strategy and preference-matching on flow experience and programming performance in game-based learning," *Innov. Educ. Teach. Int.*, vol. 47, no. 1, pp. 39–52, 2010.
+[22] Y. Y. He, C. K. Chang, and B. J. Liu, "Teaching computer programming for freshmen: A study on using scratch as remedial teaching," *Int. J. Digit. Learn. Technol.*, vol. 2, no. 1, pp. 11–32, 2010.
+[23] J. Brooke, "SUS-A quick and dirty usability scale," *Usability Eval. Ind.*, vol. 189, no. 194, pp. 4–7, 1996.
