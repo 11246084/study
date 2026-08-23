@@ -1,7 +1,5 @@
 # 結合形成性評量之程式設計適性學習輔助系統之設計與研究
 
-**A Formative-Assessment-Driven Adaptive Learning Support System for Programming Education: Design and Study**
-
 作者一 1，作者二 2，作者三 3，作者四(通訊作者) 4, *
 國立臺北商業大學資訊管理系 1,2,3,4
 E-mail 1, E-mail 2, E-mail 3, E-mail 4, *
@@ -10,32 +8,20 @@ E-mail 1, E-mail 2, E-mail 3, E-mail 4, *
 
 ## 摘要
 
-程式設計為資訊領域之基礎能力，然而初學者常因錯誤概念、程式執行流程理解不足與除錯困難而產生挫折與學習焦慮，進而影響學習動機與學習表現。為回應傳統教材固定進度與單一難度難以因應個別差異之問題，本研究以程式設計學習為情境，設計並實作一套以形成性評量為核心之程式設計適性學習輔助系統（AdaptLearn）。系統將課程切分為 8 個單元 × 3 個難易度等級，學生於每一單元完成學習活動後進行單元形成性評量，系統依作答結果即時計算下一單元之教材等級（≥80 分升級、<60 分降級、60–79 分維持），並同步產生單元內的「挑戰進階／補救複習」推薦，形成「學習活動→形成性評量→表現分級→教材調整→循環學習」之調整迴圈；同時納入錯誤可復原、錯誤正常化訊息、學習進度可視化、低風險小任務切割及友善訊息回饋等五項情意支持設計，以降低程式學習焦慮。研究採前測／後測之準實驗設計，以國立臺北商業大學資訊管理系日間部四技一年級學生為對象，分為實驗組（使用本系統）與控制組（固定教材），施測學習成效測驗、情境動機量表（SIMS）、程式設計學習焦慮問卷與系統可用性量表（SUS），並輔以系統所蒐集之學習歷程事件資料進行分析。研究結果顯示【待補】。本研究可驗證形成性評量導向之教材難易度動態調整機制之可行性與效益，並提出兼顧學習成效與情意支持之程式設計教材設計參考。
+程式設計為資訊領域之基礎能力，然而初學者常因錯誤概念、程式執行流程理解不足與除錯困難而產生挫折與學習焦慮，進而影響學習動機與學習表現。為回應傳統教材固定進度與單一難度難以因應個別差異之問題，本研究以程式設計學習為情境，設計並實作一套以形成性評量為核心之程式設計適性學習輔助系統（AdaptLearn）。系統將課程切分為 8 個單元 × 3 個難易度等級，學生於每一單元完成學習活動後進行單元形成性評量，系統依作答結果即時計算下一單元之教材等級（≥80 分升級、<60 分降級、60–79 分維持），並同步產生單元內的「挑戰進階／補救複習」推薦，形成「學習活動→形成性評量→表現分級→教材調整→循環學習」之調整迴圈；同時納入錯誤可復原、錯誤正常化訊息、學習進度可視化、低風險小任務切割及友善訊息回饋等五項情意支持設計，以降低程式學習焦慮。研究採前測／後測之準實驗設計，以國立臺北商業大學資訊管理系日間部四技一年級學生為對象，於四天密集程式設計課程中分為實驗組（使用本系統）與控制組（固定教材），施測學習成效測驗、情境動機量表（SIMS）、程式設計學習焦慮問卷與系統可用性量表（SUS），並輔以系統所蒐集之學習歷程事件資料進行分析。研究結果顯示【待補】。本研究可驗證形成性評量導向之教材難易度動態調整機制之可行性與效益，並提出兼顧學習成效與情意支持之程式設計教材設計參考。
 
 **關鍵詞**：形成性評量、適性學習、學習成效、學習動機、程式設計
 
-## Abstract
-
-Programming is a fundamental competency in information-related disciplines, yet novices frequently encounter misconceptions, an incomplete mental model of program execution, and debugging difficulties, which lead to frustration and programming anxiety and in turn undermine learning motivation and performance. To address the limitation that conventional materials follow a fixed pace at a single difficulty level, this study designs and implements AdaptLearn, a formative-assessment-driven adaptive learning support system for programming. The curriculum is organized into eight units at three difficulty levels; after each unit quiz the system computes the difficulty level of the next unit (level up when the score is at least 80, level down when below 60, unchanged between 60 and 79) and simultaneously issues a within-unit recommendation for either an advanced challenge or a remedial review, forming a closed adjustment loop of learning activity, formative assessment, performance grading, material adjustment, and iteration. Five affective-support designs — error recoverability, error-normalizing messages, progress visualization, low-stakes task decomposition, and friendly feedback — are embedded to reduce programming anxiety. A quasi-experimental pretest–posttest design was conducted with first-year students of the Department of Information Management, National Taipei University of Business, assigned to an experimental group using the system and a control group using fixed materials. Learning achievement tests, the Situational Motivation Scale, a programming anxiety questionnaire, and the System Usability Scale were administered, complemented by learning-process event logs collected by the system. The results indicate [to be completed]. The study verifies the feasibility of formative-assessment-driven difficulty adjustment and offers design references that balance learning outcomes with affective support.
-
-**Keywords**: formative assessment, adaptive learning, learning achievement, learning motivation, programming education
-
----
-
 ## 1. 前言
 
-隨著資訊科技與網路應用的快速發展，程式設計已成為資訊相關領域中不可或缺的基礎能力。然而，對多數初學者而言，程式設計學習同時涉及英文理解、抽象邏輯推理與語法及語意整合等多重認知歷程，使學習初期容易產生錯誤概念、流程理解不足與除錯困難，進而引發挫折感與學習焦慮，影響其學習動機與學習表現 [14][15]。
+程式設計已成為資訊相關領域不可或缺的基礎能力，然而初學者在學習初期同時面臨英文理解、抽象邏輯推理與語法及語意整合等多重認知歷程，容易產生錯誤概念、流程理解不足與除錯困難，進而引發挫折感與學習焦慮，影響學習動機與學習表現 [14][15]。傳統程式設計教材多以靜態文字、範例程式碼或影片說明為主，難以即時回應學生在學習歷程中所呈現的個別差異；當教材難易度未能配合學生當下的理解程度時，學生往往難以順利銜接理論與實作，進而降低學習投入與持續學習意願。近年研究指出，結合互動式數位教材 [18] 與形成性評量及即時回饋機制 [12]，有助於降低程式學習初期的理解門檻並改善情意反應，惟多數現行教材仍採固定進度與單一難度設計，缺乏具體且可操作的教材難易度評量與調整機制。
 
-傳統程式設計教材多以靜態文字、範例程式碼或影片說明為主，雖可傳遞基本知識，卻較難即時回應學生在學習歷程中所呈現的個別差異。當教材難易度未能配合學生當下的理解程度時，學生往往難以順利銜接理論與實作，進而降低學習投入與持續學習意願。近年教育科技研究指出，結合互動式數位教材 [18]、形成性評量與即時回饋機制 [12]，有助於降低程式學習初期的理解門檻，並改善學生的學習動機與情意反應；然而多數現行教材仍採固定進度與單一難度設計，缺乏具體且可操作的教材難易度評量與調整機制。
-
-基於上述背景，本研究以程式設計學習為情境，聚焦於形成性評量導向之教材難易度調整機制，設計並實作「程式設計適性學習輔助系統」（AdaptLearn），並以準實驗方式探討其對學生學習成效、學習動機與學習焦慮之影響。具體研究問題如下：
+基於上述背景，本研究設計並實作一套以形成性評量為核心之「程式設計適性學習輔助系統」（AdaptLearn），並以準實驗方式探討其對學生學習成效、學習動機與學習焦慮之影響。具體研究問題如下：
 
 - RQ1：教材難易度調整機制是否能影響學生在程式設計學習中的學習成效？
 - RQ2：教材難易度調整機制是否能影響學生在程式設計學習中的學習動機？
 - RQ3：教材難易度調整機制是否能影響學生在程式設計學習中的學習焦慮程度？
 - RQ4：學生的學習動機與學習焦慮是否與其程式設計學習成效存在顯著關係？
-
-本文其餘章節安排如下：第 2 節回顧程式設計學習困難、教材設計與情意變項之相關研究；第 3 節說明本系統之架構、適性調整機制與情意支持設計；第 4 節說明研究方法；第 5 節呈現研究結果；第 6 節為討論；第 7 節為結論與未來工作。
 
 ## 2. 文獻探討
 
@@ -78,7 +64,7 @@ Programming is a fundamental competency in information-related disciplines, yet 
 
 ### 3.2 課程結構與分級教材
 
-課程內容依教學進度切分為 8 個單元，涵蓋基礎語法與輸入輸出、條件判斷、迴圈與演算法、迴圈實作練習、串列與字串、串列與字串實作練習、函式，以及遞迴與字典。每一單元皆備有 Level 1（基礎）、Level 2（標準）、Level 3（進階）三種難易度版本之教材與對應測驗，三個等級之學習目標一致，差異在於概念說明的鋪陳密度、範例程式的複雜度與練習任務的認知層次。
+課程以四天密集班形式進行，內容依教學進度切分為 8 個單元（每日 2 個單元、每單元 180 分鐘），涵蓋基礎語法與輸入輸出、條件判斷、迴圈與演算法、迴圈實作練習、串列與字串、串列與字串實作練習、函式，以及遞迴與字典。每一單元皆備有 Level 1（基礎）、Level 2（標準）、Level 3（進階）三種難易度版本之教材與對應測驗，三個等級之學習目標一致，差異在於概念說明的鋪陳密度、範例程式的複雜度與練習任務的認知層次。
 
 單元之開放與否由授課教師透過管理介面手動控制，教師於每日課程結束後開放當日單元，以確保系統學習進度與實際課堂教學同步；已作答之單元則持續開放供學生複習。
 
@@ -118,7 +104,7 @@ Programming is a fundamental competency in information-related disciplines, yet 
 
 ### 4.1 研究設計
 
-本研究採前測／後測之準實驗研究設計，以程式設計適性學習輔助系統作為主要教學介入工具。於教學介入前，對實驗組與控制組學生實施前測，以了解學生在學習成效、學習動機與學習焦慮等面向之初始狀態；教學介入期間，實驗組學生於程式設計課程中使用本系統，系統依其形成性評量表現動態調整教材難易度，控制組學生則採用固定進度與單一難度之教材進行學習；教學介入結束後，對兩組學生實施後測，並透過組內前後測與組間差異之比較，分析系統在提升學習成效、促進學習動機及降低學習焦慮方面之成效。
+本研究採前測／後測之準實驗研究設計，以程式設計適性學習輔助系統作為主要教學介入工具。於教學介入前，對實驗組與控制組學生實施前測，以了解學生在學習成效、學習動機與學習焦慮等面向之初始狀態；教學介入以四天密集班形式進行，實驗組學生於課程中使用本系統，系統依其形成性評量表現動態調整教材難易度，控制組學生則採用固定進度與單一難度之教材進行學習；教學介入結束後，對兩組學生實施後測，並透過組內前後測與組間差異之比較，分析系統在提升學習成效、促進學習動機及降低學習焦慮方面之成效。
 
 ### 4.2 研究對象
 
@@ -140,9 +126,9 @@ Programming is a fundamental competency in information-related disciplines, yet 
 
 研究流程涵蓋四個階段（如圖 2）：
 
-- **前測**：於課程開始前對兩組學生實施學習成效前測、學習動機問卷與學習焦慮問卷。
-- **教學介入**：以程式設計課程為教學情境，涵蓋前述 8 個單元之教材與形成性評量。實驗組使用本系統學習，系統依各單元形成性評量表現動態調整後續教材等級；控制組採一般課堂教學，教材為單一難度版本，教學過程中不依學習表現調整難易度。〔實際教學介入之期程與時數：【＿＿週，每週＿＿小時】〕
-- **後測**：教學介入結束後實施學習成效後測、學習動機問卷、學習焦慮問卷，以及僅對實驗組施測之系統可用性問卷。
+- **前測**：於第一天課程開始前，對兩組學生實施學習成效前測、學習動機問卷與學習焦慮問卷。
+- **教學介入**：採四天密集班形式，每日進行 2 個單元、每單元 180 分鐘，四天合計完成前述 8 個單元之教材與形成性評量。實驗組使用本系統學習，系統依各單元形成性評量表現動態調整後續教材等級；控制組採一般課堂教學，教材為單一難度版本，教學過程中不依學習表現調整難易度。授課教師於每日課程結束後開放當日單元，使兩組之學習進度一致。
+- **後測**：於第四天課程結束後，實施學習成效後測、學習動機問卷、學習焦慮問卷，以及僅對實驗組施測之系統可用性問卷。
 - **資料分析**：彙整前後測資料與系統學習歷程資料進行量化分析。
 
 > 【圖 2 位置】研究流程圖（沿用計畫書「圖二、研究流程圖」，圖說置於圖下方）
@@ -285,7 +271,7 @@ Programming is a fundamental competency in information-related disciplines, yet 
 - **6.2 適性機制與情意支持對動機與焦慮之作用**：【待補：連結第 5.4、5.5 節結果與自我決定理論 [5] 及焦慮相關研究 [7][14]。】
 - **6.3 情意變項與學習成效之關係**：【待補：連結第 5.6 節結果與 Chang 等人 [2] 之發現，討論「教材調整→改善情意狀態→提升學習成效」之可能路徑。】
 - **6.4 學習歷程資料所揭示的教學意涵**：【待補：由第 5.8 節指出之學習節點，提出單元教材與題庫之修正建議。】
-- **6.5 研究限制**：【待補：例如樣本為單一校系之便利取樣、教學介入期程有限、未採隨機分派、學習成效測驗之等值性等。】
+- **6.5 研究限制**：【待補：例如樣本為單一校系之便利取樣、四天密集班之期程較短而難以觀察長期效果、未採隨機分派、學習成效測驗之等值性等。】
 
 ## 7. 結論與未來工作
 
